@@ -19,6 +19,8 @@ import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.dart.server.ResponseListener;
@@ -33,11 +35,14 @@ public class DartLanguageServerFactory implements LanguageServerFactory {
   @Override
   public @NotNull StreamConnectionProvider createConnectionProvider(@NotNull Project project) {
     return new StreamConnectionProvider() {
-      private PipedInputStream lspInputStream; // lsp4ij reads from here
-      private PipedOutputStream dartToLspStream; // we write Dart server responses here
+      private InputStream lspInputStream; // lsp4ij reads from here
+      private OutputStream dartToLspStream; // we write Dart server responses here
 
-      private PipedInputStream lspToDartStream; // we read lsp4ij requests from here
-      private PipedOutputStream lspOutputStream; // lsp4ij writes to here
+      private InputStream lspToDartStream; // we read lsp4ij requests from here
+      private OutputStream lspOutputStream; // lsp4ij writes to here
+
+      private QueuePipe dartToLspPipe;
+      private QueuePipe lspToDartPipe;
 
       private Thread lspToDartThread;
       private ResponseListener dartResponseListener;
@@ -45,17 +50,13 @@ public class DartLanguageServerFactory implements LanguageServerFactory {
 
       @Override
       public void start() {
-        try {
-          // Setup streams
-          lspInputStream = new PipedInputStream();
-          dartToLspStream = new PipedOutputStream(lspInputStream);
+        dartToLspPipe = new QueuePipe();
+        lspInputStream = dartToLspPipe.getInputStream();
+        dartToLspStream = dartToLspPipe.getOutputStream();
 
-          lspToDartStream = new PipedInputStream();
-          lspOutputStream = new PipedOutputStream(lspToDartStream);
-        } catch (IOException e) {
-          LOG.error("Failed to initialize piped streams for lsp4ij", e);
-          return;
-        }
+        lspToDartPipe = new QueuePipe();
+        lspToDartStream = lspToDartPipe.getInputStream();
+        lspOutputStream = lspToDartPipe.getOutputStream();
 
         dasService = DartAnalysisServerService.getInstance(project);
 
@@ -167,7 +168,13 @@ public class DartLanguageServerFactory implements LanguageServerFactory {
               }
             }
           } catch (IOException e) {
-            LOG.warn("Error reading from lspToDartStream", e);
+            String msg = e.getMessage();
+            if (msg != null
+                && (msg.contains("Pipe broken") || msg.contains("Stream closed") || msg.contains("Pipe closed"))) {
+              // Expected when stopping or closing the IDE, ignore it
+            } else {
+              LOG.warn("Error reading from lspToDartStream", e);
+            }
           }
         }, "LspToDartForwarder");
         lspToDartThread.setDaemon(true);
@@ -241,5 +248,85 @@ public class DartLanguageServerFactory implements LanguageServerFactory {
     });
 
     return features;
+  }
+
+  private static class QueuePipe {
+    private final BlockingQueue<byte[]> queue = new LinkedBlockingQueue<>();
+    private volatile boolean closed = false;
+
+    public InputStream getInputStream() {
+      return new InputStream() {
+        private byte[] current = null;
+        private int index = 0;
+
+        @Override
+        public int read() throws IOException {
+          if (current == null || index >= current.length) {
+            try {
+              current = queue.take();
+              index = 0;
+              if (current.length == 0)
+                return -1; // EOF marker
+            } catch (InterruptedException e) {
+              throw new IOException(e);
+            }
+          }
+          return current[index++] & 0xFF;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+          if (b == null) {
+            throw new NullPointerException();
+          } else if (off < 0 || len < 0 || len > b.length - off) {
+            throw new IndexOutOfBoundsException();
+          } else if (len == 0) {
+            return 0;
+          }
+
+          if (current == null || index >= current.length) {
+            try {
+              current = queue.take();
+              index = 0;
+              if (current.length == 0)
+                return -1; // EOF
+            } catch (InterruptedException e) {
+              throw new IOException(e);
+            }
+          }
+          int available = current.length - index;
+          int toCopy = Math.min(len, available);
+          System.arraycopy(current, index, b, off, toCopy);
+          index += toCopy;
+          return toCopy;
+        }
+      };
+    }
+
+    public OutputStream getOutputStream() {
+      return new OutputStream() {
+        @Override
+        public void write(int b) throws IOException {
+          if (closed)
+            throw new IOException("Stream closed");
+          queue.add(new byte[] { (byte) b });
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+          if (closed)
+            throw new IOException("Stream closed");
+          byte[] copy = new byte[len];
+          System.arraycopy(b, off, copy, 0, len);
+          queue.add(copy);
+        }
+
+        @Override
+        public void close() throws IOException {
+          closed = true;
+          queue.add(new byte[0]); // EOF marker
+        }
+      };
+    }
   }
 }
