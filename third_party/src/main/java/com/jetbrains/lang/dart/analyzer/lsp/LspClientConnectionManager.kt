@@ -7,10 +7,10 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ApplicationNamesInfo
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.util.registry.Registry
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.VfsUtilCore
-import com.intellij.util.PathUtil
 import com.jetbrains.lang.dart.analyzer.DartAnalysisServerService
 import com.jetbrains.lang.dart.sdk.DartSdk
 import com.jetbrains.lang.dart.sdk.DartSdkUtil
@@ -18,12 +18,12 @@ import org.eclipse.lsp4j.ClientCapabilities
 import org.eclipse.lsp4j.InitializeParams
 import org.eclipse.lsp4j.InitializedParams
 import org.eclipse.lsp4j.WorkspaceFolder
-import org.eclipse.lsp4j.jsonrpc.Endpoint
 import org.eclipse.lsp4j.jsonrpc.Launcher
 import org.eclipse.lsp4j.services.LanguageServer
 import java.util.MissingResourceException
 import java.util.concurrent.CancellationException
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Future
@@ -44,6 +44,7 @@ internal class LspClientConnectionManager(
   private val lock = Any()
   private val statusListeners = CopyOnWriteArrayList<AnalysisServerStatusListener>()
   private val statusVersion = AtomicLong()
+  private val listenerStatusVersions = ConcurrentHashMap<AnalysisServerStatusListener, Long>()
 
   @Volatile
   private var process: Process? = null
@@ -56,12 +57,6 @@ internal class LspClientConnectionManager(
 
   @Volatile
   private var pendingServer: DartExtendedLanguageServer? = null
-
-  @Volatile
-  private var remoteEndpoint: Endpoint? = null
-
-  @Volatile
-  private var pendingEndpoint: Endpoint? = null
 
   @Volatile
   private var listeningFuture: Future<*>? = null
@@ -79,7 +74,6 @@ internal class LspClientConnectionManager(
   private class StartupSession(
     val process: Process,
     val server: DartExtendedLanguageServer,
-    val endpoint: Endpoint,
     val listeningFuture: Future<*>,
   )
 
@@ -152,16 +146,14 @@ internal class LspClientConnectionManager(
       .setOutput(startedProcess.outputStream)
       .create()
     val startedServer = launcher.remoteProxy
-    val startedEndpoint = launcher.remoteEndpoint
     val startedListeningFuture = launcher.startListening()
-    return StartupSession(startedProcess, startedServer, startedEndpoint, startedListeningFuture)
+    return StartupSession(startedProcess, startedServer, startedListeningFuture)
   }
 
   private fun registerPendingStartup(startupSession: StartupSession) {
     synchronized(lock) {
       pendingProcess = startupSession.process
       pendingServer = startupSession.server
-      pendingEndpoint = startupSession.endpoint
       pendingListeningFuture = startupSession.listeningFuture
     }
   }
@@ -170,18 +162,15 @@ internal class LspClientConnectionManager(
     return startupInProgress &&
            pendingProcess === startupSession.process &&
            pendingServer === startupSession.server &&
-           pendingEndpoint === startupSession.endpoint &&
            pendingListeningFuture === startupSession.listeningFuture
   }
 
   private fun activatePendingStartupLocked(startupSession: StartupSession) {
     process = startupSession.process
     remoteServer = startupSession.server
-    remoteEndpoint = startupSession.endpoint
     listeningFuture = startupSession.listeningFuture
     pendingProcess = null
     pendingServer = null
-    pendingEndpoint = null
     pendingListeningFuture = null
   }
 
@@ -190,17 +179,10 @@ internal class LspClientConnectionManager(
       if (startupSession != null) {
         if (pendingProcess === startupSession.process) pendingProcess = null
         if (pendingServer === startupSession.server) pendingServer = null
-        if (pendingEndpoint === startupSession.endpoint) pendingEndpoint = null
         if (pendingListeningFuture === startupSession.listeningFuture) pendingListeningFuture = null
       }
       startupInProgress = false
     }
-  }
-
-  fun request(method: String, params: Any?): CompletableFuture<*> {
-    val endpoint = synchronized(lock) { remoteEndpoint }
-                   ?: throw IllegalStateException("Dart LSP server is not running")
-    return endpoint.request(method, params)
   }
 
   fun requestDiagnosticServer(): CompletableFuture<DartDiagnosticServerResult> {
@@ -212,13 +194,15 @@ internal class LspClientConnectionManager(
   fun isSocketOpen(): Boolean = process?.isAlive == true
 
   fun addStatusListener(listener: AnalysisServerStatusListener) {
-    statusListeners.add(listener)
-    val statusVersionSnapshot = statusVersion.get()
-    if (isServerAlive) {
-      notifyStatusListener(listener, true)
-      if (!isServerAlive && statusVersion.get() != statusVersionSnapshot) {
-        notifyStatusListener(listener, false)
-      }
+    val statusVersionSnapshot: Long
+    val serverAlive: Boolean
+    synchronized(lock) {
+      statusListeners.add(listener)
+      statusVersionSnapshot = statusVersion.get()
+      serverAlive = isServerAlive
+    }
+    if (serverAlive) {
+      notifyStatusListener(listener, true, statusVersionSnapshot)
     }
   }
 
@@ -232,11 +216,9 @@ internal class LspClientConnectionManager(
       localListeningFuture = listeningFuture ?: pendingListeningFuture
       process = null
       remoteServer = null
-      remoteEndpoint = null
       listeningFuture = null
       pendingProcess = null
       pendingServer = null
-      pendingEndpoint = null
       pendingListeningFuture = null
       startupInProgress = false
     }
@@ -252,7 +234,7 @@ internal class LspClientConnectionManager(
       )
     }
 
-    val runtimePath = PathUtil.toSystemDependentName(DartSdkUtil.getDartExePath(sdk))
+    val runtimePath = FileUtil.toSystemDependentName(DartSdkUtil.getDartExePath(sdk))
     val vmArguments = try {
       StringUtil.split(Registry.stringValue("dart.server.vm.options"), " ")
     }
@@ -321,14 +303,12 @@ internal class LspClientConnectionManager(
           if (process === startedProcess) {
             process = null
             remoteServer = null
-            remoteEndpoint = null
             listeningFuture = null
             notifyDead = true
           }
           if (pendingProcess === startedProcess) {
             pendingProcess = null
             pendingServer = null
-            pendingEndpoint = null
             pendingListeningFuture = null
             startupInProgress = false
           }
@@ -420,19 +400,30 @@ internal class LspClientConnectionManager(
 
   private fun notifyStatusListeners(isAlive: Boolean, statusVersionSnapshot: Long) {
     statusListeners.forEach { listener ->
-      if (statusVersion.get() != statusVersionSnapshot) {
-        return
-      }
-      notifyStatusListener(listener, isAlive)
+      notifyStatusListener(listener, isAlive, statusVersionSnapshot)
     }
   }
 
-  private fun notifyStatusListener(listener: AnalysisServerStatusListener, isAlive: Boolean) {
+  private fun notifyStatusListener(listener: AnalysisServerStatusListener, isAlive: Boolean, statusVersionSnapshot: Long) {
+    if (!recordNotificationVersion(listener, statusVersionSnapshot)) return
+
     try {
       listener.isAliveServer(isAlive)
     }
     catch (t: Throwable) {
       LOG.warn("Error in LSP status listener", t)
+    }
+  }
+
+  private fun recordNotificationVersion(listener: AnalysisServerStatusListener, statusVersionSnapshot: Long): Boolean {
+    while (true) {
+        val previousVersion = listenerStatusVersions.putIfAbsent(listener, statusVersionSnapshot) ?: return true
+        if (previousVersion >= statusVersionSnapshot) {
+        return false
+      }
+      if (listenerStatusVersions.replace(listener, previousVersion, statusVersionSnapshot)) {
+        return true
+      }
     }
   }
 }
