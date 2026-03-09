@@ -31,10 +31,7 @@
     <extensionPoint name="completionTimerExtension" interface="com.jetbrains.lang.dart.ide.completion.DartCompletionTimerExtension" dynamic="true"/>
   </extensionPoints>
 
-  <extensions defaultExtensionNs="com.redhat.devtools.lsp4ij">
-    <server id="Dart" factoryClass="com.jetbrains.lang.dart.analyzer.DartLanguageServerFactory"/>
-    <languageMapping language="Dart" serverId="Dart" languageId="dart"/>
-  </extensions>
+
 
   <extensions defaultExtensionNs="com.intellij">
     <moveFileHandler implementation="com.jetbrains.lang.dart.ide.refactoring.moveFile.DartServerMoveDartFileHandler"/>
