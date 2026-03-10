@@ -11,11 +11,9 @@ import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.util.registry.Registry
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.VfsUtilCore
-import com.intellij.remoteDev.thinClientLink.ClientToGtwMessage
 import com.jetbrains.lang.dart.analyzer.DartAnalysisServerService
 import com.jetbrains.lang.dart.sdk.DartSdk
 import com.jetbrains.lang.dart.sdk.DartSdkUtil
-import org.eclipse.lsp4j.ClientCapabilities
 import org.eclipse.lsp4j.CodeAction
 import org.eclipse.lsp4j.CodeActionParams
 import org.eclipse.lsp4j.Command
@@ -26,6 +24,7 @@ import org.eclipse.lsp4j.DidOpenTextDocumentParams
 import org.eclipse.lsp4j.InitializeParams
 import org.eclipse.lsp4j.InitializeResult
 import org.eclipse.lsp4j.InitializedParams
+import org.eclipse.lsp4j.PublishDiagnosticsParams
 import org.eclipse.lsp4j.TextDocumentSyncKind
 import org.eclipse.lsp4j.WorkspaceFolder
 import org.eclipse.lsp4j.jsonrpc.Launcher
@@ -47,6 +46,7 @@ internal class LspClientConnectionManager(
     private val project: Project,
     private val sdk: DartSdk,
     private val suppressAnalytics: Boolean,
+    onPublishDiagnostics: (PublishDiagnosticsParams) -> Unit = {},
 ) {
     private companion object {
         private val LOG = Logger.getInstance(LspClientConnectionManager::class.java)
@@ -85,7 +85,7 @@ internal class LspClientConnectionManager(
     @Volatile
     private var serverTextDocumentSyncKind = TextDocumentSyncKind.Full
 
-    private val languageClient = NoOpDartLanguageClient()
+    private val languageClient = DartLspLanguageClient(onPublishDiagnostics)
     private val workspaceFoldersManager = LspWorkspaceFoldersManager()
 
     private class StartupSession(

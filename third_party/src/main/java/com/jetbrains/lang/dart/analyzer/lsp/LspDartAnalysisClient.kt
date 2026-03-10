@@ -33,8 +33,10 @@ import com.google.dart.server.RequestListener
 import com.google.dart.server.ResponseListener
 import com.google.dart.server.SortMembersConsumer
 import com.google.dart.server.UpdateContentConsumer
+import com.google.dart.server.internal.BroadcastAnalysisServerListener
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
@@ -45,6 +47,7 @@ import com.jetbrains.lang.dart.analyzer.DartClient
 import com.jetbrains.lang.dart.analyzer.getDartFileInfo
 import com.jetbrains.lang.dart.sdk.DartSdk
 import org.dartlang.analysis.server.protocol.AddContentOverlay
+import org.dartlang.analysis.server.protocol.AnalysisError
 import org.dartlang.analysis.server.protocol.AnalysisOptions
 import org.dartlang.analysis.server.protocol.ImportedElements
 import org.dartlang.analysis.server.protocol.RefactoringOptions
@@ -58,6 +61,7 @@ import org.eclipse.lsp4j.CodeActionKind
 import org.eclipse.lsp4j.CodeActionParams
 import org.eclipse.lsp4j.CodeActionTriggerKind
 import org.eclipse.lsp4j.Command
+import org.eclipse.lsp4j.PublishDiagnosticsParams
 import org.eclipse.lsp4j.TextDocumentIdentifier
 import org.eclipse.lsp4j.WorkspaceEdit
 import org.eclipse.lsp4j.WorkspaceFolder
@@ -81,7 +85,10 @@ internal class LspDartAnalysisClient(
         private val ASSIST_ACTION_KINDS = listOf(CodeActionKind.Refactor)
     }
 
-    private val lspClientConnectionManager = LspClientConnectionManager(project, sdk, suppressAnalytics)
+    private val analysisServerListeners = BroadcastAnalysisServerListener()
+    private val diagnosticConverter = LspDiagnosticConverter(project)
+    private val lspClientConnectionManager =
+        LspClientConnectionManager(project, sdk, suppressAnalytics, ::handlePublishDiagnostics)
     private val sourceChangeConverter = LspSourceChangeConverter(project)
     private val documentLock = Any()
     private val documentSync =
@@ -98,9 +105,13 @@ internal class LspDartAnalysisClient(
 
     override fun isSocketOpen(): Boolean = lspClientConnectionManager.isSocketOpen()
 
-    override fun addAnalysisServerListener(listener: AnalysisServerListener) {}
+    override fun addAnalysisServerListener(listener: AnalysisServerListener) {
+        analysisServerListeners.addListener(listener)
+    }
 
-    override fun removeAnalysisServerListener(listener: AnalysisServerListener) {}
+    override fun removeAnalysisServerListener(listener: AnalysisServerListener) {
+        analysisServerListeners.removeListener(listener)
+    }
 
     override fun addRequestListener(listener: RequestListener) {}
 
@@ -285,6 +296,17 @@ internal class LspDartAnalysisClient(
         return current
     }
 
+    private fun handlePublishDiagnostics(params: PublishDiagnosticsParams) {
+        val fileUri = params.uri ?: return
+        val errors =
+            ReadAction.compute<List<AnalysisError>, RuntimeException> {
+                synchronized(documentLock) {
+                    diagnosticConverter.toAnalysisErrors(params)
+                }
+            }
+        analysisServerListeners.computedErrors(fileUri, errors)
+    }
+
     private fun toAssistSourceChange(actionResult: Either<Command, CodeAction>): SourceChange? {
         if (actionResult.isLeft) {
             val command = actionResult.left ?: return null
@@ -310,7 +332,7 @@ internal class LspDartAnalysisClient(
             return false
         }
         val kind = action.kind ?: return true
-        return ASSIST_ACTION_KINDS.any { kind == it || kind.startsWith("${it}.") }
+        return ASSIST_ACTION_KINDS.any { kind == it || kind.startsWith("$it.") }
     }
 
     private fun extractWorkspaceEdit(action: CodeAction): WorkspaceEdit? {

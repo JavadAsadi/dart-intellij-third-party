@@ -8,10 +8,14 @@ import org.eclipse.lsp4j.ShowMessageRequestParams
 import org.eclipse.lsp4j.services.LanguageClient
 import java.util.concurrent.CompletableFuture
 
-internal class NoOpDartLanguageClient : LanguageClient {
+internal class DartLspLanguageClient(
+    private val onPublishDiagnostics: (PublishDiagnosticsParams) -> Unit,
+) : LanguageClient {
     override fun telemetryEvent(`object`: Any?) {}
 
-    override fun publishDiagnostics(diagnostics: PublishDiagnosticsParams) {}
+    override fun publishDiagnostics(diagnostics: PublishDiagnosticsParams) {
+        onPublishDiagnostics(diagnostics)
+    }
 
     override fun showMessage(messageParams: MessageParams) {}
 
