@@ -7,7 +7,10 @@ import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.util.io.OSAgnosticPathUtil
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.vfs.VirtualFileManager
+import com.intellij.util.io.URLUtil
 import java.net.URI
 import java.net.URISyntaxException
 
@@ -50,3 +53,11 @@ fun getDartFileInfo(project: Project, virtualFile: VirtualFile): DartFileInfo =
   virtualFile.getUserData(DART_NOT_LOCAL_FILE_URI_KEY)
     ?.let { DartNotLocalFileInfo(project, it) }
   ?: DartLocalFileInfo(virtualFile.path)
+
+fun getDartFileUri(file: VirtualFile): String {
+  val notLocalUri = file.getUserData(DART_NOT_LOCAL_FILE_URI_KEY)
+  if (notLocalUri != null) return notLocalUri
+  val escapedPath = URLUtil.encodePath(FileUtil.toSystemIndependentName(file.path))
+  val url = VirtualFileManager.constructUrl(URLUtil.FILE_PROTOCOL, escapedPath)
+  return VfsUtil.toUri(url)?.toString() ?: url
+}

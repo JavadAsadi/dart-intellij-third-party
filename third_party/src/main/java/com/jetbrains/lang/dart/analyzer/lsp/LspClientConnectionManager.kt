@@ -24,11 +24,20 @@ import org.eclipse.lsp4j.DidOpenTextDocumentParams
 import org.eclipse.lsp4j.InitializeParams
 import org.eclipse.lsp4j.InitializeResult
 import org.eclipse.lsp4j.InitializedParams
+import org.eclipse.lsp4j.Position
+import org.eclipse.lsp4j.PrepareRenameDefaultBehavior
+import org.eclipse.lsp4j.PrepareRenameParams
+import org.eclipse.lsp4j.PrepareRenameResult
 import org.eclipse.lsp4j.PublishDiagnosticsParams
+import org.eclipse.lsp4j.Range
+import org.eclipse.lsp4j.RenameParams
+import org.eclipse.lsp4j.TextDocumentIdentifier
 import org.eclipse.lsp4j.TextDocumentSyncKind
+import org.eclipse.lsp4j.WorkspaceEdit
 import org.eclipse.lsp4j.WorkspaceFolder
 import org.eclipse.lsp4j.jsonrpc.Launcher
 import org.eclipse.lsp4j.jsonrpc.messages.Either
+import org.eclipse.lsp4j.jsonrpc.messages.Either3
 import org.eclipse.lsp4j.services.LanguageServer
 import org.eclipse.lsp4j.services.TextDocumentService
 import org.eclipse.lsp4j.services.WorkspaceService
@@ -228,6 +237,14 @@ internal class LspClientConnectionManager(
 
     fun codeAction(params: CodeActionParams): CompletableFuture<List<Either<Command, CodeAction>>> {
         return textDocumentService().codeAction(params)
+    }
+
+    fun prepareRename(params: PrepareRenameParams): CompletableFuture<Either3<Range, PrepareRenameResult, PrepareRenameDefaultBehavior>> {
+        return textDocumentService().prepareRename(params)
+    }
+
+    fun rename(params: RenameParams): CompletableFuture<WorkspaceEdit> {
+        return textDocumentService().rename(params)
     }
 
     fun didChangeWorkspaceFolders(params: DidChangeWorkspaceFoldersParams) {

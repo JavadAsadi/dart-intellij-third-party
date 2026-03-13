@@ -40,6 +40,7 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Key
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.vfs.VfsUtilCore
 import com.jetbrains.lang.dart.DartBundle
@@ -63,7 +64,10 @@ import org.eclipse.lsp4j.CodeActionParams
 import org.eclipse.lsp4j.CodeActionTriggerKind
 import org.eclipse.lsp4j.Command
 import org.eclipse.lsp4j.Diagnostic
+import org.eclipse.lsp4j.Position
+import org.eclipse.lsp4j.PrepareRenameParams
 import org.eclipse.lsp4j.PublishDiagnosticsParams
+import org.eclipse.lsp4j.RenameParams
 import org.eclipse.lsp4j.TextDocumentIdentifier
 import org.eclipse.lsp4j.WorkspaceEdit
 import org.eclipse.lsp4j.WorkspaceFolder
@@ -78,7 +82,7 @@ internal class LspDartAnalysisClient(
     sdk: DartSdk,
     suppressAnalytics: Boolean,
 ) : DartClient {
-    private companion object {
+    companion object {
         private val LOG = Logger.getInstance(LspDartAnalysisClient::class.java)
         private val GSON = Gson()
         private const val DIAGNOSTIC_SERVER_TIMEOUT_MS = 30_000L
@@ -86,8 +90,12 @@ internal class LspDartAnalysisClient(
         private const val ASSISTS_RETRY_INTERVAL_MS = 100L
         private const val FIXES_RETRY_TIMEOUT_MS = 1_000L
         private const val FIXES_RETRY_INTERVAL_MS = 100L
+        private const val RENAME_TIMEOUT_MS = 10_000L
         private val ASSIST_ACTION_KINDS = listOf(CodeActionKind.Refactor)
         private val FIX_ACTION_KINDS = listOf(CodeActionKind.QuickFix)
+        private val CLIENT_KEY = Key.create<LspDartAnalysisClient>("LspDartAnalysisClient")
+
+        fun getInstance(project: Project): LspDartAnalysisClient? = project.getUserData(CLIENT_KEY)
     }
 
     private data class CachedDiagnostic(
@@ -123,6 +131,7 @@ internal class LspDartAnalysisClient(
 
     override fun start() {
         lspClientConnectionManager.start()
+        project.putUserData(CLIENT_KEY, this)
     }
 
     override fun isSocketOpen(): Boolean = lspClientConnectionManager.isSocketOpen()
@@ -675,6 +684,7 @@ internal class LspDartAnalysisClient(
     ) {}
 
     override fun server_shutdown() {
+        project.putUserData(CLIENT_KEY, null)
         synchronized(documentLock) {
             documentSync.clear()
             diagnosticsByFileUri.clear()
@@ -701,6 +711,53 @@ internal class LspDartAnalysisClient(
     ) {}
 
     override fun lsp_connectToDtd(uri: String) {}
+
+    /**
+     * Returns the placeholder string for the element at the given position, or null if the element cannot be renamed.
+     */
+    fun prepareRename(fileUri: String, line: Int, character: Int): String? {
+        try {
+            synchronized(documentLock) {
+                ensureWorkspaceFolderForFile(fileUri)
+                loadCurrentContent(fileUri)?.let { content ->
+                    documentSync.applyOverlay(fileUri, AddContentOverlay(content))
+                }
+            }
+        } catch (t: Throwable) {
+            LOG.warn("Failed to sync content for prepareRename", t)
+            return null
+        }
+
+        val params = PrepareRenameParams(TextDocumentIdentifier(fileUri), Position(line, character))
+        return try {
+            val result = lspClientConnectionManager.prepareRename(params).get(RENAME_TIMEOUT_MS, TimeUnit.MILLISECONDS) ?: return null
+            when {
+                result.isFirst -> ""
+                result.isSecond -> result.second.placeholder ?: ""
+                result.isThird -> ""
+                else -> null
+            }
+        } catch (t: Throwable) {
+            if (t is InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
+            LOG.warn("prepareRename failed", t)
+            null
+        }
+    }
+
+    fun rename(fileUri: String, line: Int, character: Int, newName: String): WorkspaceEdit? {
+        val params = RenameParams(TextDocumentIdentifier(fileUri), Position(line, character), newName)
+        return try {
+            lspClientConnectionManager.rename(params).get(RENAME_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+        } catch (t: Throwable) {
+            if (t is InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
+            LOG.warn("rename failed", t)
+            null
+        }
+    }
 
     private fun loadCurrentContent(fileUri: String): String? {
         val virtualFile = getDartFileInfo(project, fileUri).findFile() ?: return null
