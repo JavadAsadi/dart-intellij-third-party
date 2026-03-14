@@ -9,6 +9,7 @@ import com.redhat.devtools.lsp4ij.client.features.LSPClientFeatures;
 import com.redhat.devtools.lsp4ij.client.features.LSPCompletionFeature;
 import com.redhat.devtools.lsp4ij.client.features.LSPDiagnosticFeature;
 import com.redhat.devtools.lsp4ij.client.features.LSPHoverFeature;
+import com.redhat.devtools.lsp4ij.client.features.LSPRenameFeature;
 import com.redhat.devtools.lsp4ij.server.StreamConnectionProvider;
 import com.redhat.devtools.lsp4ij.server.definition.LanguageServerDefinition;
 import com.intellij.psi.PsiFile;
@@ -40,6 +41,13 @@ public class DartLanguageServerDefinition extends LanguageServerDefinition {
     LSPClientFeatures features = new LSPClientFeatures();
 
     features.setHoverFeature(new LSPHoverFeature() {
+      @Override
+      public boolean isEnabled(@NotNull PsiFile file) {
+        return true;
+      }
+    });
+
+    features.setRenameFeature(new LSPRenameFeature() {
       @Override
       public boolean isEnabled(@NotNull PsiFile file) {
         return true;
@@ -159,7 +167,7 @@ public class DartLanguageServerDefinition extends LanguageServerDefinition {
             if ("initialize".equals(method)) {
               String id = lspMessage.get("id").toString(); // captures integer or quoted string
               String fakeResponseStr = "{\"jsonrpc\":\"2.0\",\"id\":" + id
-                  + ",\"result\":{\"capabilities\":{\"hoverProvider\":true,\"completionProvider\":{\"resolveProvider\":false}}}}";
+                  + ",\"result\":{\"capabilities\":{\"hoverProvider\":true,\"renameProvider\":{\"prepareProvider\":true},\"completionProvider\":{\"resolveProvider\":false}}}}";
               writeMessage(serverOutputStream, fakeResponseStr);
               LOG.info("Sent fake initialize response to lsp4ij via streams");
             } else if ("shutdown".equals(method)) {
@@ -170,18 +178,11 @@ public class DartLanguageServerDefinition extends LanguageServerDefinition {
                 writeMessage(serverOutputStream, fakeResponseStr);
                 LOG.info("Sent fake shutdown response to lsp4ij via streams");
               }
-            } else if ("textDocument/hover".equals(method)) {
-              LOG.info("Forwarding hover request to Dart server");
-              JsonObject legacyRequest = new JsonObject();
-              String legacyId = dasService.generateUniqueId();
-              legacyRequest.addProperty("id", legacyId);
-              legacyRequest.addProperty("method", "lsp.handle");
-
-              JsonObject params = new JsonObject();
-              params.add("lspMessage", lspMessage);
-              legacyRequest.add("params", params);
-
-              dasService.sendRequest(legacyId, legacyRequest);
+            } else if ("textDocument/hover".equals(method)
+                || "textDocument/prepareRename".equals(method)
+                || "textDocument/rename".equals(method)) {
+              LOG.info("Forwarding lsp4ij request to Dart server: " + method);
+              forwardLspRequestToDartServer(dasService, lspMessage);
             } else {
               LOG.info("Ignored lsp4ij request: " + method);
             }
@@ -238,6 +239,19 @@ public class DartLanguageServerDefinition extends LanguageServerDefinition {
       out.write(header.getBytes(StandardCharsets.UTF_8));
       out.write(body);
       out.flush();
+    }
+
+    private void forwardLspRequestToDartServer(DartAnalysisServerService dasService, JsonObject lspMessage) {
+      JsonObject legacyRequest = new JsonObject();
+      String legacyId = dasService.generateUniqueId();
+      legacyRequest.addProperty("id", legacyId);
+      legacyRequest.addProperty("method", "lsp.handle");
+
+      JsonObject params = new JsonObject();
+      params.add("lspMessage", lspMessage);
+      legacyRequest.add("params", params);
+
+      dasService.sendRequest(legacyId, legacyRequest);
     }
   }
 }
