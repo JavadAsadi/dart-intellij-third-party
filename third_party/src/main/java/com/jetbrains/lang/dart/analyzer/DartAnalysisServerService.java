@@ -4,15 +4,11 @@ package com.jetbrains.lang.dart.analyzer;
 import com.google.common.collect.EvictingQueue;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.google.dart.server.*;
-import com.google.dart.server.generated.AnalysisServer;
 import com.google.dart.server.internal.remote.DebugPrintStream;
-import com.google.dart.server.internal.remote.RemoteAnalysisServerImpl;
-import com.google.dart.server.internal.remote.StdioServerSocket;
 import com.google.dart.server.utilities.logging.Logging;
 import com.google.gson.JsonObject;
 import com.intellij.codeInsight.CodeInsightSettings;
 import com.intellij.openapi.Disposable;
-import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ApplicationNamesInfo;
 import com.intellij.openapi.application.ModalityState;
@@ -58,6 +54,8 @@ import com.jetbrains.lang.dart.assists.DartQuickAssistIntention;
 import com.jetbrains.lang.dart.assists.DartQuickAssistIntentionListener;
 import com.jetbrains.lang.dart.fixes.DartQuickFix;
 import com.jetbrains.lang.dart.fixes.DartQuickFixListener;
+import com.jetbrains.lang.dart.analyzer.lsp.LspDartAnalysisClient;
+import com.jetbrains.lang.dart.analyzer.lsp.LspRenameRefactoringResult;
 import com.jetbrains.lang.dart.ide.actions.DartPubActionBase;
 import com.jetbrains.lang.dart.ide.completion.DartCompletionTimerExtension;
 import com.jetbrains.lang.dart.ide.errorTreeView.DartProblemsView;
@@ -102,7 +100,6 @@ public final class DartAnalysisServerService implements Disposable {
   private static final long UPDATE_FILES_TIMEOUT = 300;
 
   private static final long CHECK_CANCELLED_PERIOD = 10;
-  private static final long SEND_REQUEST_TIMEOUT = TimeUnit.SECONDS.toMillis(1);
   private static final long EDIT_FORMAT_TIMEOUT = TimeUnit.SECONDS.toMillis(3);
   private static final long EDIT_ORGANIZE_DIRECTIVES_TIMEOUT = TimeUnit.MILLISECONDS.toMillis(300);
   private static final long EDIT_SORT_MEMBERS_TIMEOUT = TimeUnit.SECONDS.toMillis(3);
@@ -139,8 +136,7 @@ public final class DartAnalysisServerService implements Disposable {
 
   // Do not wait for server response under lock. Do not take read/write action under lock.
   private final Object myLock = new Object();
-  private @Nullable RemoteAnalysisServerImpl myServer;
-  private @Nullable StdioServerSocket myServerSocket;
+  private @Nullable DartClient myClient;
 
   private @NotNull String myServerVersion = "";
   private @NotNull String mySdkVersion = "";
@@ -182,10 +178,6 @@ public final class DartAnalysisServerService implements Disposable {
 
   public static String getClientId() {
     return ApplicationNamesInfo.getInstance().getFullProductName().replace(' ', '-');
-  }
-
-  private static String getClientVersion() {
-    return ApplicationInfo.getInstance().getApiVersion();
   }
 
   private final @NotNull List<AnalysisServerListener> myAdditionalServerListeners = new SmartList<>();
@@ -333,8 +325,8 @@ public final class DartAnalysisServerService implements Disposable {
       myServerVersion = version != null ? version : "";
       // completion_setSubscriptions() are handled here instead of in startServer() as the server version isn't known until this
       // serverConnected() call.
-      if (myServer != null && !shouldUseCompletion2()) {
-        myServer.completion_setSubscriptions(List.of(CompletionService.AVAILABLE_SUGGESTION_SETS));
+      if (myClient != null && !shouldUseCompletion2()) {
+        myClient.completion_setSubscriptions(List.of(CompletionService.AVAILABLE_SUGGESTION_SETS));
       }
     }
 
@@ -585,8 +577,8 @@ public final class DartAnalysisServerService implements Disposable {
   public void addAnalysisServerListener(final @NotNull AnalysisServerListener serverListener) {
     if (!myAdditionalServerListeners.contains(serverListener)) {
       myAdditionalServerListeners.add(serverListener);
-      if (myServer != null && isServerProcessActive()) {
-        myServer.addAnalysisServerListener(serverListener);
+      if (myClient != null && isServerProcessActive()) {
+        myClient.addAnalysisServerListener(serverListener);
       }
     }
   }
@@ -594,8 +586,8 @@ public final class DartAnalysisServerService implements Disposable {
   @SuppressWarnings("unused") // for Flutter plugin
   public void removeAnalysisServerListener(final @NotNull AnalysisServerListener serverListener) {
     myAdditionalServerListeners.remove(serverListener);
-    if (myServer != null) {
-      myServer.removeAnalysisServerListener(serverListener);
+    if (myClient != null) {
+      myClient.removeAnalysisServerListener(serverListener);
     }
   }
 
@@ -603,8 +595,8 @@ public final class DartAnalysisServerService implements Disposable {
   public void addRequestListener(final @NotNull RequestListener requestListener) {
     if (!myRequestListeners.contains(requestListener)) {
       myRequestListeners.add(requestListener);
-      if (myServer != null && isServerProcessActive()) {
-        myServer.addRequestListener(requestListener);
+      if (myClient != null && isServerProcessActive()) {
+        myClient.addRequestListener(requestListener);
       }
     }
   }
@@ -612,8 +604,8 @@ public final class DartAnalysisServerService implements Disposable {
   @SuppressWarnings("unused") // for Flutter plugin
   public void removeRequestListener(final @NotNull RequestListener requestListener) {
     myRequestListeners.remove(requestListener);
-    if (myServer != null) {
-      myServer.removeRequestListener(requestListener);
+    if (myClient != null) {
+      myClient.removeRequestListener(requestListener);
     }
   }
 
@@ -621,8 +613,8 @@ public final class DartAnalysisServerService implements Disposable {
   public void addResponseListener(final @NotNull ResponseListener responseListener) {
     if (!myResponseListeners.contains(responseListener)) {
       myResponseListeners.add(responseListener);
-      if (myServer != null && isServerProcessActive()) {
-        myServer.addResponseListener(responseListener);
+      if (myClient != null && isServerProcessActive()) {
+        myClient.addResponseListener(responseListener);
       }
     }
   }
@@ -630,8 +622,8 @@ public final class DartAnalysisServerService implements Disposable {
   @SuppressWarnings("unused") // for Flutter plugin
   public void removeResponseListener(final @NotNull ResponseListener responseListener) {
     myResponseListeners.remove(responseListener);
-    if (myServer != null) {
-      myServer.removeResponseListener(responseListener);
+    if (myClient != null) {
+      myClient.removeResponseListener(responseListener);
     }
   }
 
@@ -752,7 +744,7 @@ public final class DartAnalysisServerService implements Disposable {
     final DocumentListener documentListener = new DocumentListener() {
       @Override
       public void beforeDocumentChange(@NotNull DocumentEvent e) {
-        if (myServer == null) return;
+        if (myClient == null) return;
 
         myServerData.onDocumentChanged(e);
 
@@ -917,7 +909,7 @@ public final class DartAnalysisServerService implements Disposable {
   }
 
   public void updateFilesContent() {
-    if (myServer != null) {
+    if (myClient != null) {
       ApplicationManager.getApplication().runReadAction(this::doUpdateFilesContent);
     }
   }
@@ -925,7 +917,7 @@ public final class DartAnalysisServerService implements Disposable {
   private void doUpdateFilesContent() {
     // may be use DocumentListener to collect deltas instead of sending the whole Document.getText() each time?
 
-    AnalysisServer server = myServer;
+    DartClient server = myClient;
     if (server == null) {
       return;
     }
@@ -999,7 +991,7 @@ public final class DartAnalysisServerService implements Disposable {
   }
 
   boolean setAnalysisRoots(@NotNull List<String> includedRootPaths, @NotNull List<String> excludedRootPaths) {
-    AnalysisServer server = myServer;
+    DartClient server = myClient;
     if (server == null) {
       return false;
     }
@@ -1072,7 +1064,7 @@ public final class DartAnalysisServerService implements Disposable {
   }
 
   public @NotNull List<HoverInformation> analysis_getHover(final @NotNull VirtualFile file, final int _offset) {
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return HoverInformation.EMPTY_LIST;
     }
@@ -1107,7 +1099,7 @@ public final class DartAnalysisServerService implements Disposable {
   public @Nullable List<DartServerData.DartNavigationRegion> analysis_getNavigation(final @NotNull VirtualFile file,
                                                                                     final int _offset,
                                                                                     final int length) {
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return null;
     }
@@ -1158,7 +1150,7 @@ public final class DartAnalysisServerService implements Disposable {
   public @NotNull List<SourceChange> edit_getAssists(final @NotNull VirtualFile file, final int _offset, final int _length) {
     if (!file.isInLocalFileSystem()) return Collections.emptyList();
 
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return Collections.emptyList();
     }
@@ -1195,7 +1187,7 @@ public final class DartAnalysisServerService implements Disposable {
   public boolean edit_isPostfixCompletionApplicable(VirtualFile file, int _offset, String key) {
     if (!file.isInLocalFileSystem()) return false;
 
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return false;
     }
@@ -1218,7 +1210,7 @@ public final class DartAnalysisServerService implements Disposable {
   }
 
   public PostfixTemplateDescriptor @Nullable [] edit_listPostfixCompletionTemplates() {
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return null;
     }
@@ -1253,7 +1245,7 @@ public final class DartAnalysisServerService implements Disposable {
   public @Nullable SourceChange edit_getPostfixCompletion(final @NotNull VirtualFile file, final int _offset, final String key) {
     if (!file.isInLocalFileSystem()) return null;
 
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return null;
     }
@@ -1287,7 +1279,7 @@ public final class DartAnalysisServerService implements Disposable {
   public @Nullable SourceChange edit_getStatementCompletion(final @NotNull VirtualFile file, final int _offset) {
     if (!file.isInLocalFileSystem()) return null;
 
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return null;
     }
@@ -1319,7 +1311,7 @@ public final class DartAnalysisServerService implements Disposable {
   }
 
   public void diagnostic_getServerPort(GetServerPortConsumer consumer) {
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       consumer.onError(new RequestError(ExtendedRequestErrorCode.INVALID_SERVER_RESPONSE,
                                         DartBundle.message("analysis.server.not.running"), null));
@@ -1341,7 +1333,7 @@ public final class DartAnalysisServerService implements Disposable {
       return;
     }
 
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       consumer.consume(Collections.emptyList());
       return;
@@ -1376,7 +1368,7 @@ public final class DartAnalysisServerService implements Disposable {
   public void search_findElementReferences(final @NotNull VirtualFile file,
                                            final int _offset,
                                            final @NotNull Consumer<? super SearchResult> consumer) {
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return;
     }
@@ -1439,7 +1431,7 @@ public final class DartAnalysisServerService implements Disposable {
                                                                   final int _offset,
                                                                   final boolean superOnly) {
     final List<TypeHierarchyItem> results = new ArrayList<>();
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return results;
     }
@@ -1475,7 +1467,7 @@ public final class DartAnalysisServerService implements Disposable {
                                                                               int _offset) {
     if (!file.isInLocalFileSystem()) return null;
 
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return null;
     }
@@ -1511,7 +1503,7 @@ public final class DartAnalysisServerService implements Disposable {
                                                                                @NotNull String libraryUri) {
     if (!file.isInLocalFileSystem()) return null;
 
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return null;
     }
@@ -1545,7 +1537,7 @@ public final class DartAnalysisServerService implements Disposable {
   public @Nullable String completion_getSuggestions(final @NotNull VirtualFile file, final int _offset) {
     if (!file.isInLocalFileSystem()) return null;
 
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return null;
     }
@@ -1592,7 +1584,7 @@ public final class DartAnalysisServerService implements Disposable {
                                                               final int invocationCount) {
     if (!file.isInLocalFileSystem()) return null;
 
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return null;
     }
@@ -1666,7 +1658,7 @@ public final class DartAnalysisServerService implements Disposable {
                                             final int lineLength) {
     if (!file.isInLocalFileSystem()) return null;
 
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return null;
     }
@@ -1709,7 +1701,7 @@ public final class DartAnalysisServerService implements Disposable {
   public @Nullable List<ImportedElements> analysis_getImportedElements(final @NotNull VirtualFile file,
                                                                        final int _selectionOffset,
                                                                        final int _selectionLength) {
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return null;
     }
@@ -1748,7 +1740,7 @@ public final class DartAnalysisServerService implements Disposable {
   public @Nullable SourceFileEdit edit_importElements(final @NotNull VirtualFile file,
                                                       final @NotNull List<ImportedElements> importedElements,
                                                       final int _offset) {
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return null;
     }
@@ -1792,7 +1784,7 @@ public final class DartAnalysisServerService implements Disposable {
                                      GetRefactoringConsumer consumer) {
     if (!file.isInLocalFileSystem()) return false;
 
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return false;
     }
@@ -1804,8 +1796,24 @@ public final class DartAnalysisServerService implements Disposable {
     return true;
   }
 
+  public @Nullable LspRenameRefactoringResult lsp_getRenameRefactoring(@NotNull VirtualFile file,
+                                                                       int _offset,
+                                                                       boolean validateOnly,
+                                                                       @Nullable String newName) {
+    if (!file.isInLocalFileSystem()) return null;
+
+    final DartClient server = myClient;
+    if (!(server instanceof LspDartAnalysisClient lspClient)) {
+      return null;
+    }
+
+    final String fileUri = getLocalFileUri(file.getPath());
+    final int offset = getOriginalOffset(file, _offset);
+    return lspClient.computeRenameRefactoring(fileUri, offset, validateOnly, newName);
+  }
+
   public @Nullable SourceFileEdit edit_organizeDirectives(@NotNull String filePath) {
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return null;
     }
@@ -1843,7 +1851,7 @@ public final class DartAnalysisServerService implements Disposable {
   }
 
   public @Nullable SourceFileEdit edit_sortMembers(@NotNull String filePath) {
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return null;
     }
@@ -1883,7 +1891,7 @@ public final class DartAnalysisServerService implements Disposable {
   }
 
   public void analysis_reanalyze() {
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return;
     }
@@ -1895,19 +1903,19 @@ public final class DartAnalysisServerService implements Disposable {
 
   private void analysis_setPriorityFiles() {
     synchronized (myLock) {
-      if (myServer == null) return;
+      if (myClient == null) return;
 
       if (LOG.isDebugEnabled()) {
         LOG.debug("analysis_setPriorityFiles, files:\n" + StringUtil.join(myVisibleFileUris, ",\n"));
       }
 
-      myServer.analysis_setPriorityFiles(myVisibleFileUris);
+      myClient.analysis_setPriorityFiles(myVisibleFileUris);
     }
   }
 
   private void analysis_setSubscriptions() {
     synchronized (myLock) {
-      if (myServer == null) return;
+      if (myClient == null) return;
 
       final Map<String, List<String>> subscriptions = new HashMap<>();
       subscriptions.put(AnalysisService.HIGHLIGHTS, myVisibleFileUris);
@@ -1921,12 +1929,12 @@ public final class DartAnalysisServerService implements Disposable {
         LOG.debug("analysis_setSubscriptions, subscriptions:\n" + subscriptions);
       }
 
-      myServer.analysis_setSubscriptions(subscriptions);
+      myClient.analysis_setSubscriptions(subscriptions);
     }
   }
 
   public @Nullable String execution_createContext(@NotNull String filePath) {
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       String message = "Dart Analysis Server is not available.";
       LOG.warn(message);
@@ -1960,7 +1968,7 @@ public final class DartAnalysisServerService implements Disposable {
   }
 
   public void execution_deleteContext(final @NotNull String contextId) {
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server != null) {
       server.execution_deleteContext(contextId);
     }
@@ -1972,7 +1980,7 @@ public final class DartAnalysisServerService implements Disposable {
                                                                                                                 int contextOffset,
                                                                                                                 @NotNull List<RuntimeCompletionVariable> variables,
                                                                                                                 @NotNull List<RuntimeCompletionExpression> expressions) {
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return new Pair<>(new SmartList<>(), new SmartList<>());
     }
@@ -2021,7 +2029,7 @@ public final class DartAnalysisServerService implements Disposable {
    */
   @Deprecated
   public @Nullable String execution_mapUri(@NotNull String _id, @Nullable String _filePathOrUri, @Nullable String _executionContextUri) {
-    final AnalysisServer server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return null;
     }
@@ -2075,7 +2083,7 @@ public final class DartAnalysisServerService implements Disposable {
 
   // LSP over Legacy Dart Analysis Server protocols
   public @Nullable String lspMessage_dart_textDocumentContent(@NotNull String fileUri) {
-    RemoteAnalysisServerImpl server = myServer;
+    DartClient server = myClient;
     if (server == null) {
       return null;
     }
@@ -2154,35 +2162,7 @@ public final class DartAnalysisServerService implements Disposable {
           myDebugLog.add(str);
         }
       };
-
-      String vmArgsRaw;
-      try {
-        vmArgsRaw = Registry.stringValue("dart.server.vm.options");
-      }
-      catch (MissingResourceException e) {
-        vmArgsRaw = "";
-      }
-
-      String serverArgsRaw = useDartLangServerCall ? "--protocol=analyzer" : "";
-      if (suppressAnalytics) {
-        serverArgsRaw += " --suppress-analytics";
-      }
-
-      try {
-        serverArgsRaw += " " + Registry.stringValue("dart.server.additional.arguments");
-      }
-      catch (MissingResourceException e) {
-        // NOP
-      }
-
-      String firstArgument = useDartLangServerCall ? "language-server" : analysisServerPath;
-      myServerSocket =
-        new StdioServerSocket(runtimePath, StringUtil.split(vmArgsRaw, " "), firstArgument, StringUtil.split(serverArgsRaw, " "),
-                              debugStream);
-      myServerSocket.setClientId(getClientId());
-      myServerSocket.setClientVersion(getClientVersion());
-
-      final RemoteAnalysisServerImpl startedServer = new DartAnalysisServerImpl(myProject, myServerSocket);
+      final DartClient startedServer = DartClientFactory.create(myProject, sdk, debugStream, suppressAnalytics);
 
       try {
         startedServer.start();
@@ -2211,7 +2191,7 @@ public final class DartAnalysisServerService implements Disposable {
         startedServer.addStatusListener(isAlive -> {
           if (!isAlive) {
             synchronized (myLock) {
-              if (startedServer == myServer) {
+              if (startedServer == myClient) {
                 // Show a notification on the dart analysis tool window.
                 ApplicationManager.getApplication().invokeLater(
                   () -> {
@@ -2237,7 +2217,7 @@ public final class DartAnalysisServerService implements Disposable {
                                                    supportsUris,
                                                    supportsWorkspaceApplyEdits);
 
-        myServer = startedServer;
+        myClient = startedServer;
 
         // Clear any dart view notifications.
         ApplicationManager.getApplication().invokeLater(
@@ -2249,7 +2229,7 @@ public final class DartAnalysisServerService implements Disposable {
           myDisposedCondition
         );
 
-        // This must be done after myServer is set, and should be done each time the server starts.
+        // This must be done after myClient is set, and should be done each time the server starts.
         registerPostfixCompletionTemplates();
 
         myDtdUri = null;
@@ -2271,7 +2251,7 @@ public final class DartAnalysisServerService implements Disposable {
 
   public boolean isServerProcessActive() {
     synchronized (myLock) {
-      return myServer != null && myServer.isSocketOpen();
+      return myClient != null && myClient.isSocketOpen();
     }
   }
 
@@ -2284,22 +2264,22 @@ public final class DartAnalysisServerService implements Disposable {
 
     ApplicationManager.getApplication().assertReadAccessAllowed();
     synchronized (myLock) {
-      if (myServer == null ||
+      if (myClient == null ||
           !sdk.getHomePath().equals(mySdkHome) ||
           !sdk.getVersion().equals(mySdkVersion) ||
-          !myServer.isSocketOpen()) {
+          !myClient.isSocketOpen()) {
         stopServer();
         DartProblemsView.getInstance(myProject).setInitialCurrentFileBeforeServerStart(getCurrentOpenFile());
 
         AnalyticsConfiguration analyticsConfig = Analytics.getConfiguration(sdk, myProject);
         startServer(sdk, analyticsConfig.getSuppressAnalytics());
 
-        if (myServer != null) {
+        if (myClient != null) {
           myRootsHandler.onServerStarted();
         }
       }
 
-      return myServer != null;
+      return myClient != null;
     }
   }
 
@@ -2310,36 +2290,26 @@ public final class DartAnalysisServerService implements Disposable {
 
   void stopServer() {
     synchronized (myLock) {
-      if (myServer != null) {
+      if (myClient != null) {
         LOG.debug("stopping server");
-        myServer.removeAnalysisServerListener(myAnalysisServerListener);
+        myClient.removeAnalysisServerListener(myAnalysisServerListener);
         for (AnalysisServerListener listener : myAdditionalServerListeners) {
-          myServer.removeAnalysisServerListener(listener);
+          myClient.removeAnalysisServerListener(listener);
         }
         for (RequestListener listener : myRequestListeners) {
-          myServer.removeRequestListener(listener);
+          myClient.removeRequestListener(listener);
         }
         for (ResponseListener listener : myResponseListeners) {
-          myServer.removeResponseListener(listener);
+          myClient.removeResponseListener(listener);
         }
 
-        myServer.server_shutdown();
-
-        long startTime = System.currentTimeMillis();
-        while (myServerSocket != null && myServerSocket.isOpen()) {
-          if (System.currentTimeMillis() - startTime > SEND_REQUEST_TIMEOUT) {
-            myServerSocket.stop();
-            break;
-          }
-          Uninterruptibles.sleepUninterruptibly(CHECK_CANCELLED_PERIOD, TimeUnit.MILLISECONDS);
-        }
+        myClient.server_shutdown();
       }
 
       stopShowingServerProgress();
       myUpdateFilesAlarm.cancelAllRequests();
 
-      myServerSocket = null;
-      myServer = null;
+      myClient = null;
       mySdkHome = null;
       mySdkVersion = "";
       myServerVersion = "";
@@ -2356,7 +2326,7 @@ public final class DartAnalysisServerService implements Disposable {
   }
 
   public void connectToDtd(@NotNull String uri) {
-    AnalysisServer server = myServer;
+    DartClient server = myClient;
     if (server == null) {
       return;
     }
@@ -2449,7 +2419,7 @@ public final class DartAnalysisServerService implements Disposable {
     LOG.info(builder.toString());
   }
 
-  private static boolean awaitForLatchCheckingCanceled(final @NotNull AnalysisServer server,
+  private static boolean awaitForLatchCheckingCanceled(final @NotNull DartClient server,
                                                        final @NotNull CountDownLatch latch,
                                                        long timeoutInMillis) {
     if (ApplicationManager.getApplication().isUnitTestMode()) {
@@ -2568,7 +2538,7 @@ public final class DartAnalysisServerService implements Disposable {
    */
   @SuppressWarnings("unused") // for Flutter plugin
   public String generateUniqueId() {
-    final RemoteAnalysisServerImpl server = myServer;
+    final DartClient server = myClient;
     if (server == null) {
       return null;
     }
@@ -2580,7 +2550,7 @@ public final class DartAnalysisServerService implements Disposable {
    */
   @SuppressWarnings("unused") // for Flutter plugin
   public void sendRequest(String id, JsonObject request) {
-    final RemoteAnalysisServerImpl server = myServer;
+    final DartClient server = myClient;
     if (server != null) {
       server.sendRequestToServer(id, request);
     }
@@ -2591,7 +2561,7 @@ public final class DartAnalysisServerService implements Disposable {
    */
   @SuppressWarnings("unused") // for Flutter plugin
   public void sendRequestToServer(String id, JsonObject request, com.google.dart.server.Consumer consumer) {
-    final RemoteAnalysisServerImpl server = myServer;
+    final DartClient server = myClient;
     if (server != null) {
       server.sendRequestToServer(id, request, consumer);
     }
@@ -2604,11 +2574,11 @@ public final class DartAnalysisServerService implements Disposable {
   public void setServerLogSubscription(boolean subscribeToLog) {
     if (mySubscribeToServerLog != subscribeToLog) {
       mySubscribeToServerLog = subscribeToLog;
-      server_setSubscriptions(myServer);
+      server_setSubscriptions(myClient);
     }
   }
 
-  private void server_setSubscriptions(@Nullable AnalysisServer server) {
+  private void server_setSubscriptions(@Nullable DartClient server) {
     if (server != null) {
       server.server_setSubscriptions(mySubscribeToServerLog ? Arrays.asList(ServerService.STATUS, ServerService.LOG)
                                                             : Collections.singletonList(ServerService.STATUS));
