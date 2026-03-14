@@ -21,6 +21,7 @@ plugins {
     id("org.jetbrains.intellij.platform") version "2.10.5" // IntelliJ Platform Gradle Plugin
     id("org.jetbrains.changelog") version "2.2.0" // Gradle Changelog Plugin
     id("org.jetbrains.kotlinx.kover") version "0.9.4" // Kover Code Coverage Plugin
+    id("org.jlleitschuh.gradle.ktlint") version "12.3.0" // Kotlin linter and formatter
 }
 
 // Configure project's dependencies
@@ -68,6 +69,14 @@ intellijPlatform {
     }
 }
 
+ktlint {
+    filter {
+        exclude { element ->
+            !element.isDirectory && !element.file.absolutePath.contains("/dart/analyzer/lsp/")
+        }
+    }
+}
+
 sourceSets {
     main {
         java {
@@ -110,6 +119,7 @@ dependencies {
     }
 
     implementation(fileTree("lib") { include("*.jar") })
+    implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:0.23.1")
 
     testImplementation("junit:junit:4.13.2")
 }
