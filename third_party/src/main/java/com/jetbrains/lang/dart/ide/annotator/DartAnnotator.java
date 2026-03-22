@@ -22,6 +22,7 @@ import com.jetbrains.lang.dart.analyzer.DartServerData;
 import com.jetbrains.lang.dart.fixes.DartQuickFix;
 import com.jetbrains.lang.dart.fixes.DartQuickFixSet;
 import com.jetbrains.lang.dart.highlight.DartSyntaxHighlighterColors;
+import com.jetbrains.lang.dart.lsp.DartLspUtil;
 import com.jetbrains.lang.dart.ide.errorTreeView.DartProblem;
 import com.jetbrains.lang.dart.psi.DartSymbolLiteralExpression;
 import com.jetbrains.lang.dart.psi.DartTernaryExpression;
@@ -163,50 +164,52 @@ public final class DartAnnotator implements Annotator {
   public void annotate(final @NotNull PsiElement element, final @NotNull AnnotationHolder holder) {
     if (holder.isBatchMode()) return;
 
-    final AnnotationSession session = holder.getCurrentAnnotationSession();
-    List<DartServerData.DartError> notYetAppliedErrors = session.getUserData(DART_ERRORS);
-    List<DartServerData.DartHighlightRegion> notYetAppliedHighlighting = session.getUserData(DART_HIGHLIGHTING);
+    if (!DartLspUtil.isLspMode()) {
+      final AnnotationSession session = holder.getCurrentAnnotationSession();
+      List<DartServerData.DartError> notYetAppliedErrors = session.getUserData(DART_ERRORS);
+      List<DartServerData.DartHighlightRegion> notYetAppliedHighlighting = session.getUserData(DART_HIGHLIGHTING);
 
-    if (notYetAppliedErrors == null || notYetAppliedHighlighting == null) {
-      notYetAppliedErrors = new ArrayList<>();
-      notYetAppliedHighlighting = new ArrayList<>();
+      if (notYetAppliedErrors == null || notYetAppliedHighlighting == null) {
+        notYetAppliedErrors = new ArrayList<>();
+        notYetAppliedHighlighting = new ArrayList<>();
 
-      session.putUserData(DART_ERRORS, notYetAppliedErrors);
-      session.putUserData(DART_HIGHLIGHTING, notYetAppliedHighlighting);
+        session.putUserData(DART_ERRORS, notYetAppliedErrors);
+        session.putUserData(DART_HIGHLIGHTING, notYetAppliedHighlighting);
 
-      final VirtualFile vFile = element.getContainingFile().getVirtualFile();
-      if (canBeAnalyzedByServer(element.getProject(), vFile)) {
-        final DartAnalysisServerService service = DartAnalysisServerService.getInstance(element.getProject());
-        if (service.serverReadyForRequest()) {
-          service.updateFilesContent();
+        final VirtualFile vFile = element.getContainingFile().getVirtualFile();
+        if (canBeAnalyzedByServer(element.getProject(), vFile)) {
+          final DartAnalysisServerService service = DartAnalysisServerService.getInstance(element.getProject());
+          if (service.serverReadyForRequest()) {
+            service.updateFilesContent();
 
-          if (ApplicationManager.getApplication().isUnitTestMode()) {
-            service.waitForAnalysisToComplete_TESTS_ONLY(vFile);
+            if (ApplicationManager.getApplication().isUnitTestMode()) {
+              service.waitForAnalysisToComplete_TESTS_ONLY(vFile);
+            }
+
+            notYetAppliedErrors.addAll(service.getErrors(vFile));
+            notYetAppliedErrors.sort(Comparator.comparingInt(DartServerData.DartError::getOffset));
+            ensureNoErrorsAfterEOF(notYetAppliedErrors, element.getContainingFile().getTextLength());
+
+            notYetAppliedHighlighting.addAll(service.getHighlight(vFile));
+            notYetAppliedHighlighting.sort(Comparator.comparingInt(DartServerData.DartHighlightRegion::getOffset));
           }
-
-          notYetAppliedErrors.addAll(service.getErrors(vFile));
-          notYetAppliedErrors.sort(Comparator.comparingInt(DartServerData.DartError::getOffset));
-          ensureNoErrorsAfterEOF(notYetAppliedErrors, element.getContainingFile().getTextLength());
-
-          notYetAppliedHighlighting.addAll(service.getHighlight(vFile));
-          notYetAppliedHighlighting.sort(Comparator.comparingInt(DartServerData.DartHighlightRegion::getOffset));
         }
       }
+
+      processDartRegionsInRange(notYetAppliedErrors, element.getTextRange(), err -> {
+        VirtualFile vFile = element.getContainingFile().getVirtualFile();
+        createAnnotation(holder, err, new DartQuickFixSet(element.getManager(), vFile, err.getOffset(), err.getCode()));
+      });
+
+      processDartRegionsInRange(notYetAppliedHighlighting, element.getTextRange(), region -> {
+        String attributeKey = HIGHLIGHTING_TYPE_MAP.get(region.getType());
+        if (attributeKey != null) {
+          TextAttributesKey attributes = TextAttributesKey.find(attributeKey);
+          TextRange regionRange = new TextRange(region.getOffset(), region.getOffset() + region.getLength());
+          holder.newSilentAnnotation(HighlightSeverity.INFORMATION).range(regionRange).textAttributes(attributes).create();
+        }
+      });
     }
-
-    processDartRegionsInRange(notYetAppliedErrors, element.getTextRange(), err -> {
-      VirtualFile vFile = element.getContainingFile().getVirtualFile();
-      createAnnotation(holder, err, new DartQuickFixSet(element.getManager(), vFile, err.getOffset(), err.getCode()));
-    });
-
-    processDartRegionsInRange(notYetAppliedHighlighting, element.getTextRange(), region -> {
-      String attributeKey = HIGHLIGHTING_TYPE_MAP.get(region.getType());
-      if (attributeKey != null) {
-        TextAttributesKey attributes = TextAttributesKey.find(attributeKey);
-        TextRange regionRange = new TextRange(region.getOffset(), region.getOffset() + region.getLength());
-        holder.newSilentAnnotation(HighlightSeverity.INFORMATION).range(regionRange).textAttributes(attributes).create();
-      }
-    });
 
     if (DartTokenTypes.COLON == element.getNode().getElementType() && element.getParent() instanceof DartTernaryExpression) {
       holder.newSilentAnnotation(HighlightSeverity.INFORMATION).textAttributes(DartSyntaxHighlighterColors.OPERATION_SIGN).create();

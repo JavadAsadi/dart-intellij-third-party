@@ -57,6 +57,7 @@ import com.jetbrains.lang.dart.analytics.AnalyticsConfiguration;
 import com.jetbrains.lang.dart.assists.DartQuickAssistIntention;
 import com.jetbrains.lang.dart.assists.DartQuickAssistIntentionListener;
 import com.jetbrains.lang.dart.fixes.DartQuickFix;
+import com.jetbrains.lang.dart.lsp.DartLspUtil;
 import com.jetbrains.lang.dart.fixes.DartQuickFixListener;
 import com.jetbrains.lang.dart.ide.actions.DartPubActionBase;
 import com.jetbrains.lang.dart.ide.completion.DartCompletionTimerExtension;
@@ -2276,6 +2277,8 @@ public final class DartAnalysisServerService implements Disposable {
   }
 
   public boolean serverReadyForRequest() {
+    if (DartLspUtil.isLspMode()) return false;
+
     final DartSdk sdk = DartSdk.getDartSdk(myProject);
     if (sdk == null || !isDartSdkVersionSufficient(sdk)) {
       stopServer();

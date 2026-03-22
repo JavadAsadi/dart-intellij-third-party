@@ -11,6 +11,7 @@ import com.intellij.openapi.util.text.Strings;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.containers.ContainerUtil;
+import com.jetbrains.lang.dart.lsp.DartLspUtil;
 import com.jetbrains.lang.dart.psi.*;
 import com.jetbrains.lang.dart.util.DartClassResolveResult;
 import com.jetbrains.lang.dart.util.DartResolveUtil;
@@ -25,6 +26,7 @@ public final class DartParameterInfoHandler implements ParameterInfoHandler<PsiE
 
   @Override
   public @Nullable PsiElement findElementForParameterInfo(@NotNull CreateParameterInfoContext context) {
+    if (DartLspUtil.isLspMode()) return null;
     final PsiElement contextElement = context.getFile().findElementAt(context.getEditor().getCaretModel().getOffset());
     return findElementForParameterInfo(contextElement);
   }

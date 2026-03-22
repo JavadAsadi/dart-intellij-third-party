@@ -7,12 +7,14 @@ import com.intellij.ide.hierarchy.HierarchyProvider;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.psi.PsiElement;
 import com.jetbrains.lang.dart.ide.hierarchy.DartHierarchyUtil;
+import com.jetbrains.lang.dart.lsp.DartLspUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public final class DartCallHierarchyProvider implements HierarchyProvider {
   @Override
   public @Nullable PsiElement getTarget(@NotNull DataContext dataContext) {
+    if (DartLspUtil.isLspMode()) return null;
     return DartHierarchyUtil.getResolvedElementAtCursor(dataContext);
   }
 

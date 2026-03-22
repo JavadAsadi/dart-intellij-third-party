@@ -36,6 +36,7 @@ import com.intellij.ui.LayeredIcon;
 import com.intellij.util.PlatformIcons;
 import com.intellij.util.ProcessingContext;
 import com.jetbrains.lang.dart.DartBundle;
+import com.jetbrains.lang.dart.lsp.DartLspUtil;
 import com.jetbrains.lang.dart.DartLanguage;
 import com.jetbrains.lang.dart.analyzer.DartAnalysisServerService;
 import com.jetbrains.lang.dart.assists.AssistUtils;
@@ -70,6 +71,7 @@ public final class DartServerCompletionContributor extends CompletionContributor
              protected void addCompletions(@NotNull CompletionParameters parameters,
                                            @NotNull ProcessingContext context,
                                            @NotNull CompletionResultSet originalResultSet) {
+               if (DartLspUtil.isLspMode()) return;
                final PsiFile originalFile = parameters.getOriginalFile();
                final Project project = originalFile.getProject();
 

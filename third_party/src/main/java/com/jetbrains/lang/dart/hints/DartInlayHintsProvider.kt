@@ -4,6 +4,7 @@ import com.intellij.codeInsight.hints.declarative.*
 import com.intellij.openapi.editor.Editor
 import com.intellij.psi.PsiFile
 import com.jetbrains.lang.dart.analyzer.DartAnalysisServerService
+import com.jetbrains.lang.dart.lsp.DartLspUtil
 
 class DartInlayHintsProvider : InlayHintsProvider {
   companion object {
@@ -12,6 +13,7 @@ class DartInlayHintsProvider : InlayHintsProvider {
 
   override fun createCollector(file: PsiFile, editor: Editor): InlayHintsCollector = object : OwnBypassCollector {
     override fun collectHintsForFile(file: PsiFile, sink: InlayTreeSink) {
+      if (DartLspUtil.isLspMode()) return
       val virtualFile = file.virtualFile ?: return
       val project = file.project
 

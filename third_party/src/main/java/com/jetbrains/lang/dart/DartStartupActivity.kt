@@ -17,6 +17,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.search.FilenameIndex
 import com.intellij.psi.search.GlobalSearchScope
 import com.jetbrains.lang.dart.analyzer.DartAnalysisServerService
+import com.jetbrains.lang.dart.lsp.DartLspUtil
 import com.jetbrains.lang.dart.ide.toolingDaemon.DartToolingDaemonService
 import com.jetbrains.lang.dart.projectWizard.DartModuleBuilder
 import com.jetbrains.lang.dart.sdk.DartSdk
@@ -59,6 +60,8 @@ class DartStartupActivity : ProjectActivity {
   }
 
   private suspend fun startAnalysisServerIfNeeded(project: Project) {
+    if (DartLspUtil.isLspMode()) return
+
     if (DartModuleBuilder.isPubGetScheduledForNewlyCreatedProject(project)) {
       // We want to start Analysis Server after the initial 'pub get' is finished, this will be done in DartPubActionBase
       return

@@ -1,0 +1,517 @@
+<idea-plugin>
+  <id>com.redhat.devtools.lsp4ij</id>
+  <name>LSP4IJ</name>
+  <version>0.12.0</version>
+  <vendor email="developers@redhat.com" url="https://github.com/redhat-developer/lsp4ij/issues">Red-Hat</vendor>
+  <change-notes><![CDATA[<h3>0.12.0</h3>
+    <ul>
+      <li>Support for textDocument/diagnostic (Pull diagnostic)</li>
+      <li>Support for 'Inspect Code...' to show diagnostics from opened/closed files</li>
+      <li>Support for breadcrumbs/sticky lines based on LSP DocumentSymbol</li>
+      <li>Resolve CodeLens only for visible view port</li>
+      <li>Performance improvements for LSP inlay hints, code lenses and semantic tokens</li>
+      <li>Fixing bugs</li>
+    </ul>
+    Learn more in the <a href="https://github.com/redhat-developer/lsp4ij/milestone/13?closed=1">changelog</a>.
+
+    <h3>0.11.0</h3>
+    <ul>
+      <li>Performance improvements for LSP inlay hints</li>
+      <li>Performance improvements for LSP semantic tokens</li>
+      <li>Enhanced TextMate editing experience</li>
+      <li><a href="https://github.com/redhat-developer/lsp4ij/blob/main/docs/LSPApi.md#language-server-installer">Language Server Installer API</a> introduced</li>
+      <li>Improved Debug DAP support, now with "attach" functionality for supporting <a href="https://github.com/redhat-developer/lsp4ij/blob/main/docs/dap/user-defined-dap/python-debugpy.md">Python - Debugpy</a></li>
+      <li>New (experimental) <a href="https://github.com/redhat-developer/lsp4ij/blob/main/docs/dap/DeveloperGuide.md>extension point to register a DAP server</a> introduced</li>
+      <li>Fixing bugs</li>
+    </ul>
+    Learn more in the <a href="https://github.com/redhat-developer/lsp4ij/milestone/12?closed=1">changelog</a>.
+
+    <h3>0.10.0</h3>
+    <ul>
+      <li><a href="https://github.com/redhat-developer/lsp4ij/blob/main/docs/dap/UserGuide.md" >Debug Adapter Protocol</a> support</li>
+      <li>LSP textDocument/onTypeFormatting support</li>
+      <li>On type formating client side, based on LSP selectionRanges / foldingRange</li>
+      <li>LSP Inlay Hints improvement by adopting no deprecated codeInsight.declarativeInlayProviderFactory extension point.</li>
+      <li>LSP API to customize file URI</li>
+      <li>LSP API to customize LSP progress</li>
+      <li>Fixing bugs</li>
+    </ul>
+    Learn more in the <a href="https://github.com/redhat-developer/lsp4ij/milestone/11?closed=1">changelog</a>.
+
+    <h3>0.9.0</h3>
+    <ul>
+      <li>Support for <a href="https://github.com/redhat-developer/lsp4ij/blob/main/docs/LSPSupport.md#selection-range">Selection Range</a></li>
+      <li>Use standard menu Implementation(s) (Ctrl+Alt+B) to execute <a href="https://github.com/redhat-developer/lsp4ij/blob/main/docs/LSPSupport.md#implementation">Implementation</a></li>
+      <li>Use standard menu Type Declaration (Ctrl+Shift+B) to execute <a href="https://github.com/redhat-developer/lsp4ij/blob/main/docs/LSPSupport.md#type-definition">Type definition</a></li>
+      <li>LSP code folding improvements for braced blocks and code block provider implementation based on that same information</li>
+      <li>Show workspace symbols with Class, Struct, Type kind in the standard Class tab (Ctrl+N)</li>
+      <li>Provide completion, validation, etc for configuring user-defined language servers based on JSON Schema</li>
+      <li>Fixing bugs</li>
+    </ul>
+    Learn more in the <a href="https://github.com/redhat-developer/lsp4ij/milestone/10?closed=1">changelog</a>.
+
+    <h3>0.8.1</h3>
+    <ul>
+      <li>Remove using internal API ProjectIndexingActivityHistoryListener</li>
+      <li>JSON support for configuring user-defined language servers</li>
+      <li>Fixing bugs</li>
+    </ul>
+    Learn more in the <a href="https://github.com/redhat-developer/lsp4ij/milestone/9?closed=1">changelog</a>.
+
+    <h3>0.8.0</h3>
+    <ul>
+      <li>Support for <a href="https://github.com/redhat-developer/lsp4ij/blob/main/docs/LSPSupport.md#call-hierarchy">Call Hierarchy</a></li>
+      <li>Support for <a href="https://github.com/redhat-developer/lsp4ij/blob/main/docs/LSPSupport.md#type-hierarchy">Type Hierarchy</a></li>
+      <li>Starting the language servers after all projects are indexed to ensure very good performance of the IntelliJ startup</li>
+      <li>Fixing bugs</li>
+    </ul>
+    Learn more in the <a href="https://github.com/redhat-developer/lsp4ij/milestone/8?closed=1">changelog</a>.
+
+    <h3>0.7.0</h3>
+    <ul>
+      <li>Support for documentSelector in <a href="https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#client_registerCapability">registerCapability</a></li>
+      <li>Provide the <a href="https://github.com/redhat-developer/lsp4ij/blob/main/docs/LSPApi.md">LSP client features API</a></li>
+    </ul>
+    Learn more in the <a href="https://github.com/redhat-developer/lsp4ij/milestone/7?closed=1">changelog</a>.
+
+    <h3>0.6.0</h3>
+    <ul>
+      <li>Support for textDocument/documentSymbol</li>
+      <li>Provide a new way to connect to a language server with <a href="https://github.com/redhat-developer/lsp4ij/blob/main/docs/DeveloperGuide.md#osprocessstreamconnectionprovider">OSProcessStreamConnectionProvider</a></li>
+      <li>Fixing bugs</li>
+    </ul>
+    Learn more in the <a href="https://github.com/redhat-developer/lsp4ij/milestone/6?closed=1">changelog</a>.
+
+    <h3>0.5.0</h3>
+    <ul>
+      <li>Fixing bugs</li>
+    </ul>
+    Learn more in the <a href="https://github.com/redhat-developer/lsp4ij/milestone/5?closed=1">changelog</a>.
+
+    <h3>0.4.0</h3>
+    <ul>
+      <li>Support for workspace/symbol</li>
+      <li>Fixing bugs</li>
+    </ul>
+    Learn more in the <a href="https://github.com/redhat-developer/lsp4ij/milestone/4?closed=1">changelog</a>.
+
+    <h3>0.3.0</h3>
+    <ul>
+      <li>Support for textDocument/semanticTokens</li>
+      <li>Support file link in hover</li>
+      <li>Improve performance</li>
+      <li>Fixing bugs</li>
+    </ul>
+    Learn more in the <a href="https://github.com/redhat-developer/lsp4ij/milestone/3?closed=1">changelog</a>.
+
+    <h3>0.0.2</h3>
+    <ul>
+      <li>Provide an API to enable/disable & start/stop language server</li>
+      <li>Support for syntax coloration for Markdown code block and indented blockquote on hover, completion documentation.</li>
+      <li>Support 'deprecated'/'unnecessary' diagnostic tags</li>
+      <li>Support for LSP 'workspace/configuration'</li>
+      <li>Support for triggered chars in LSP completion support</li>
+      <li>Support for labelDetails in completion</li>
+      <li>Display platform file icons on completion</li>
+      <li>Provides menu for LSP implementation/references/declaration/type definition</li>
+      <li>Export user defined language server</li>
+      <li>Support Macros in the start LS command</li>
+      <li>Improve performance</li>
+      <li>Fixing bugs</li>
+    </ul>
+    Learn more in the <a href="https://github.com/redhat-developer/lsp4ij/milestone/2?closed=1">changelog</a>.
+
+    <h3>0.0.1</h3>
+    <ul>
+      <li>Initial release</li>
+    </ul>    
+    Learn more in the <a href="https://github.com/redhat-developer/lsp4ij/milestone/1?closed=1">changelog</a>.]]></change-notes>
+  <description><![CDATA[<p>LSP4IJ is a free and open-source</p>
+
+<ul><li><a href="https://microsoft.github.io/language-server-protocol/">Language Server protocol (LSP)</a> client compatible with all flavours of IntelliJ.</li><li><a href="https://microsoft.github.io/debug-adapter-protocol/">Debug Adapter Protocol</a> support with <a href="./docs/dap/UserGuide.md">Debug Adapter Protocol Run/Debug configuration</a>.</li></ul>
+
+<p>It allows you to integrate any <code>language server</code> that communicates with its client via <code>stdio</code>:</p>
+
+<ul><li>by <code>developing an IntelliJ plugin</code> with LSP <code>extension points</code>:<ul><li><a href="./docs/DeveloperGuide.md#extension-point-declaration">com.redhat.devtools.lsp4ij.server</a> extension point to define a language server.</li><li><a href="./docs/DeveloperGuide.md#declare-file-mappings">com.redhat.devtools.lsp4ij.languageMapping</a> to associate an IntelliJ language with a language server definition.</li></ul></li><li>by manually adding <a href="./docs/UserDefinedLanguageServer.md">language server definitions</a>, 
+supporting custom server settings. This approach doesn't require developing a specific IntelliJ plugin.</li></ul>
+
+<p>LSP4IJ also provides:</p>
+
+<ul><li>an <a href="./docs/UserGuide.md#lsp-console">LSP Consoles view</a> to tracks LSP requests, responses and notifications in a console:</li></ul>
+
+<p><img src="./docs/images/LSPConsole.png" alt="LSP console" /></p>
+
+<p>If you select the language server node, you can configure it the same way as in the <a href="./docs/UserGuide.md#language-servers-preferences">Language Servers preferences page</a></p>
+
+<p><img src="./docs/images/LSPLanguageServerDetail.png" alt="LSP language server detail" /></p>
+
+<p>and use the left toolbar to <code>Apply</code> or <code>Reset</code> the settings.</p>
+
+<ul><li>a <a href="./docs/UserGuide.md#language-servers-preferences">Language Servers preferences page</a> to configure the LSP trace level, the debug port to use to debug language server:</li></ul>
+
+<p><img src="./docs/images/LanguageServerPreferences.png" alt="Language Server preferences" /></p>
+
+<p>You can find more documentation in:</p>
+
+<ul><li><a href="./docs/DeveloperGuide.md">the developer guide</a>, providing step-by-step instructions on how to integrate a language server in LSP4J in an external IntelliJ plugin.</li><li><a href="./docs/UserDefinedLanguageServer.md">the User-defined language server documentation</a>, explaining how to integrate a language server in LSP4J with few settings. </li><li><a href="./docs/UserGuide.md">the user guide</a>, which explains how to use LSP console and Language Server preferences.</li><li><a href="./docs/LSPSupport.md">the LSP Support overview</a>, describing which LSP features are implemented, and how.</li></ul>]]></description>
+  <depends>com.intellij.modules.platform</depends>
+  <depends optional="true">org.jetbrains.plugins.textmate</depends>
+  <depends optional="true">com.redhat.devtools.intellij.telemetry</depends>
+  <depends optional="true" config-file="plugin-json.xml">com.intellij.modules.json</depends>
+  <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/build_number_ranges.html for description -->
+  <idea-version since-build="233" />
+  <!-- LSP extension points -->
+  <extensionPoints>
+    <!-- Language server extension point -->
+    <extensionPoint name="server" beanClass="com.redhat.devtools.lsp4ij.server.definition.extension.ServerExtensionPointBean">
+      <with attribute="factoryClass" implements="com.redhat.devtools.lsp4ij.LanguageServerFactory" />
+    </extensionPoint>
+    <!-- Language server mappings extension point -->
+    <extensionPoint name="languageMapping" beanClass="com.redhat.devtools.lsp4ij.server.definition.extension.LanguageMappingExtensionPointBean">
+      <with attribute="documentMatcher" implements="com.redhat.devtools.lsp4ij.DocumentMatcher" />
+    </extensionPoint>
+    <extensionPoint name="fileTypeMapping" beanClass="com.redhat.devtools.lsp4ij.server.definition.extension.FileTypeMappingExtensionPointBean">
+      <with attribute="documentMatcher" implements="com.redhat.devtools.lsp4ij.DocumentMatcher" />
+    </extensionPoint>
+    <extensionPoint name="fileNamePatternMapping" beanClass="com.redhat.devtools.lsp4ij.server.definition.extension.FileNamePatternMappingExtensionPointBean">
+      <with attribute="documentMatcher" implements="com.redhat.devtools.lsp4ij.DocumentMatcher" />
+    </extensionPoint>
+    <!-- Semantic tokens colors provider extension point -->
+    <extensionPoint name="semanticTokensColorsProvider" beanClass="com.redhat.devtools.lsp4ij.server.definition.extension.SemanticTokensColorsProviderExtensionPointBean">
+      <with attribute="class" implements="com.redhat.devtools.lsp4ij.features.semanticTokens.SemanticTokensColorsProvider" />
+    </extensionPoint>
+  </extensionPoints>
+  <!-- Language Server support -->
+  <extensions defaultExtensionNs="com.intellij">
+    <backgroundPostStartupActivity implementation="com.redhat.devtools.lsp4ij.internal.LSPPostStartupActivity" />
+    <!-- LSP application services -->
+    <applicationService serviceImplementation="com.redhat.devtools.lsp4ij.client.indexing.ProjectIndexingDumbAndScanningStrategy" />
+    <applicationService serviceImplementation="com.redhat.devtools.lsp4ij.internal.telemetry.TelemetryManager" />
+    <applicationService serviceImplementation="com.redhat.devtools.lsp4ij.LanguageServersRegistry" />
+    <applicationService id="com.redhat.devtools.lsp4ij.launching.UserDefinedLanguageServerSettings" serviceImplementation="com.redhat.devtools.lsp4ij.launching.UserDefinedLanguageServerSettings" />
+    <applicationService id="com.redhat.devtools.lsp4ij.launching.templates.LanguageServerTemplateManager" serviceImplementation="com.redhat.devtools.lsp4ij.launching.templates.LanguageServerTemplateManager" />
+    <!-- LSP project services -->
+    <projectService serviceImplementation="com.redhat.devtools.lsp4ij.client.indexing.ProjectIndexingManager" />
+    <projectService serviceImplementation="com.redhat.devtools.lsp4ij.LanguageServerManager" />
+    <projectService serviceImplementation="com.redhat.devtools.lsp4ij.internal.editor.EditorFeatureManager" />
+    <projectService serviceImplementation="com.redhat.devtools.lsp4ij.LanguageServiceAccessor" />
+    <projectService serviceImplementation="com.redhat.devtools.lsp4ij.lifecycle.LanguageServerLifecycleManager" />
+    <projectService serviceImplementation="com.redhat.devtools.lsp4ij.usages.LSPUsagesManager" />
+    <projectService serviceImplementation="com.redhat.devtools.lsp4ij.features.documentation.MarkdownConverter" />
+    <!-- LSP textDocument/publishDiagnostics notification support -->
+    <externalAnnotator id="LSPDiagnosticAnnotator" language="" implementationClass="com.redhat.devtools.lsp4ij.features.diagnostics.LSPDiagnosticAnnotator" />
+    <localInspection id="LSPLocalInspectionTool" language="" enabledByDefault="true" groupName="Language Servers" displayName="Diagnostics" implementationClass="com.redhat.devtools.lsp4ij.inspections.LSPLocalInspectionTool" />
+    <!-- LSP textDocument/completion request support -->
+    <typedHandler id="LSPCompletionTriggerTypedHandler" order="last" implementation="com.redhat.devtools.lsp4ij.features.completion.LSPCompletionTriggerTypedHandler" />
+    <completion.contributor id="LSPCompletionContributor" language="any" implementationClass="com.redhat.devtools.lsp4ij.features.completion.LSPCompletionContributor" order="first, before wordCompletion" />
+    <!-- LSP textDocument/definition request support -->
+    <gotoDeclarationHandler id="LSPGotoDeclarationHandler" implementation="com.redhat.devtools.lsp4ij.features.navigation.LSPGotoDeclarationHandler" order="first" />
+    <!-- LSP textDocument/documentLink request support -->
+    <externalAnnotator id="LSPDocumentLinkAnnotator" language="" implementationClass="com.redhat.devtools.lsp4ij.features.documentLink.LSPDocumentLinkAnnotator" />
+    <gotoDeclarationHandler id="LSPDocumentLinkGotoDeclarationHandler" implementation="com.redhat.devtools.lsp4ij.features.documentLink.LSPDocumentLinkGotoDeclarationHandler" />
+    <!-- LSP textDocument/documentSymbol request support -->
+    <lang.psiStructureViewFactory id="LSPDocumentSymbolStructureViewFactoryForText" language="TEXT" implementationClass="com.redhat.devtools.lsp4ij.features.documentSymbol.LSPDocumentSymbolStructureViewFactory" />
+    <lang.psiStructureViewFactory id="LSPDocumentSymbolStructureViewFactoryForTextMate" language="textmate" implementationClass="com.redhat.devtools.lsp4ij.features.documentSymbol.LSPDocumentSymbolStructureViewFactory" />
+    <!-- Breadcrumbs/sticky lines support using document symbols -->
+    <breadcrumbsInfoProvider id="LSPBreadcrumbsProvider" implementation="com.redhat.devtools.lsp4ij.features.documentSymbol.LSPBreadcrumbsProvider" order="last" />
+    <postStartupActivity id="LSPBreadcrumbsRefreshListener" implementation="com.redhat.devtools.lsp4ij.features.documentSymbol.LSPBreadcrumbsRefreshListener" />
+    <!-- LSP textDocument/documentHighlight request support -->
+    <highlightUsagesHandlerFactory id="LSPHighlightUsagesHandlerFactory" implementation="com.redhat.devtools.lsp4ij.features.highlight.LSPHighlightUsagesHandlerFactory" />
+    <!-- A target element evaluator that returns a fake PSI element for the highlighted identifier at the caret -->
+    <targetElementEvaluator language="" implementationClass="com.redhat.devtools.lsp4ij.features.highlight.LSPTargetElementEvaluator" />
+    <!-- LSP textDocument/codeLens request support -->
+    <codeInsight.codeVisionProviderFactory id="DummyCodeVisionProviderFactory" implementation="com.redhat.devtools.lsp4ij.features.codeLens.DummyCodeVisionProviderFactory" />
+    <config.codeVisionGroupSettingProvider id="LSPCodeLensSettingsProvider" implementation="com.redhat.devtools.lsp4ij.features.codeLens.LSPCodeLensSettingsProvider" />
+    <codeInsight.codeVisionProvider id="LSPCodeLensProvider" implementation="com.redhat.devtools.lsp4ij.features.codeLens.LSPCodeLensProvider" />
+    <editorFactoryListener id="LSPCodeLensEditorFactoryListener" implementation="com.redhat.devtools.lsp4ij.features.codeLens.LSPCodeLensEditorFactoryListener" />
+    <!-- LSP textDocument/inlayHint requests support -->
+    <codeInsight.declarativeInlayProviderFactory id="LSPDeclarativeInlayHintProvidersFactory" implementation="com.redhat.devtools.lsp4ij.features.inlayhint.LSPDeclarativeInlayHintProvidersFactory" />
+    <codeInsight.inlayActionHandler handlerId="LSP4IJ" implementationClass="com.redhat.devtools.lsp4ij.features.inlayhint.LSPDeclarativeInlayActionHandler" />
+    <!-- LSP textDocument/colorInformation requests support -->
+    <codeInsight.inlayProviderFactory id="LSPInlayHintProvidersFactory" implementation="com.redhat.devtools.lsp4ij.features.LSPInlayHintProvidersFactory" />
+    <!-- LSP textDocument/hover request support -->
+    <platform.backend.documentation.targetProvider id="LSPDocumentationTargetProvider" implementation="com.redhat.devtools.lsp4ij.features.documentation.LSPDocumentationTargetProvider" order="first" />
+    <platform.backend.documentation.linkHandler id="LSPDocumentationLinkHandler" implementation="com.redhat.devtools.lsp4ij.features.documentation.LSPDocumentationLinkHandler" />
+    <!-- LSP textDocument/folding -->
+    <lang.foldingBuilder id="LSPFoldingBuilderForText" language="TEXT" implementationClass="com.redhat.devtools.lsp4ij.features.foldingRange.LSPFoldingRangeBuilder" order="first" />
+    <lang.foldingBuilder id="LSPFoldingBuilderForTextMate" language="textmate" implementationClass="com.redhat.devtools.lsp4ij.features.foldingRange.LSPFoldingRangeBuilder" order="first" />
+    <!-- Code block providers -->
+    <codeBlockProvider language="TEXT" implementationClass="com.redhat.devtools.lsp4ij.features.codeBlockProvider.LSPCodeBlockProvider" order="first" />
+    <codeBlockProvider language="textmate" implementationClass="com.redhat.devtools.lsp4ij.features.codeBlockProvider.LSPCodeBlockProvider" order="first" />
+    <!-- LSP textDocument/signatureHelp -->
+    <codeInsight.parameterInfo id="LSPParameterInfoHandlerForTEXT" language="TEXT" implementationClass="com.redhat.devtools.lsp4ij.features.signatureHelp.LSPParameterInfoHandler" />
+    <codeInsight.parameterInfo id="LSPParameterInfoHandlerForTextMate" language="textmate" implementationClass="com.redhat.devtools.lsp4ij.features.signatureHelp.LSPParameterInfoHandler" />
+    <!-- LSP textDocument/formatting + textDocument/rangeFormatting request support -->
+    <formattingService id="LSPFormattingOnlyService" implementation="com.redhat.devtools.lsp4ij.features.formatting.LSPFormattingOnlyService" />
+    <formattingService id="LSPFormattingAndRangeBothService" implementation="com.redhat.devtools.lsp4ij.features.formatting.LSPFormattingAndRangeBothService" />
+    <!-- These provide an improved editor experience in abstract file type and TextMate files -->
+    <typedHandler id="LSPEditorImprovementsTypedHandler" implementation="com.redhat.devtools.lsp4ij.features.formatting.LSPEditorImprovementsTypedHandler" order="first, before LSPCompletionTriggerTypedHandler, before LSPClientSideOnTypeFormattingTypedHandler, before LSPServerSideOnTypeFormattingTypedHandler" />
+    <backspaceHandlerDelegate id="LSPEditorImprovementsBackspaceHandler" implementation="com.redhat.devtools.lsp4ij.features.formatting.LSPEditorImprovementsBackspaceHandler" order="first" />
+    <typedHandler id="LSPImprovedTextMateNestedBracesTypedHandler" order="first, before LSPCompletionTriggerTypedHandler, before LSPClientSideOnTypeFormattingTypedHandler, before LSPServerSideOnTypeFormattingTypedHandler" implementation="com.redhat.devtools.lsp4ij.features.formatting.LSPImprovedTextMateNestedBracesTypedHandler" />
+    <!-- Workaround for https://youtrack.jetbrains.com/issue/IJPL-159454 -->
+    <enterHandlerDelegate id="LSPEditorImprovementsEnterBetweenBracesHandler" implementation="com.redhat.devtools.lsp4ij.features.formatting.LSPEditorImprovementsEnterBetweenBracesHandler" order="first, before EnterBetweenBracesHandler, before LSPServerSideOnTypeFormattingEnterHandler" />
+    <!-- LSP textDocument/onTypeFormatting support -->
+    <typedHandler id="LSPServerSideOnTypeFormattingTypedHandler" order="first" implementation="com.redhat.devtools.lsp4ij.features.formatting.LSPServerSideOnTypeFormattingTypedHandler" />
+    <enterHandlerDelegate id="LSPServerSideOnTypeFormattingEnterHandler" order="first" implementation="com.redhat.devtools.lsp4ij.features.formatting.LSPServerSideOnTypeFormattingEnterHandler" />
+    <!-- Client-side on-type formatting -->
+    <typedHandler id="LSPClientSideOnTypeFormattingTypedHandler" order="first, before LSPServerSideOnTypeFormattingTypedHandler" implementation="com.redhat.devtools.lsp4ij.features.formatting.LSPClientSideOnTypeFormattingTypedHandler" />
+    <!-- LSP textDocument/selectionRange request support -->
+    <extendWordSelectionHandler implementation="com.redhat.devtools.lsp4ij.features.selectionRange.LSPExtendWordSelectionHandler" id="LSPExtendWordSelectionHandler" order="first" />
+    <extendWordSelectionHandler implementation="com.redhat.devtools.lsp4ij.features.selectionRange.LSPCodeBlockExtendWordSelectionHandler" id="LSPCodeBlockExtendWordSelectionHandler" order="first, before LSPExtendWordSelectionHandler" />
+    <!-- LSP textDocument/semanticTokens request support -->
+    <highlightVisitor id="LSPSemanticTokensHighlightVisitor" implementation="com.redhat.devtools.lsp4ij.features.semanticTokens.LSPSemanticTokensHighlightVisitor" order="first" />
+    <colorSettingsPage implementation="com.redhat.devtools.lsp4ij.features.semanticTokens.SemanticTokensColorSettingsPage" />
+    <!-- File view provider based on textDocument/semanticTokens -->
+    <!-- We can register a view provider factory for TextMate files based on the language -->
+    <lang.fileViewProviderFactory language="textmate" implementationClass="com.redhat.devtools.lsp4ij.features.semanticTokens.viewProvider.LSPSemanticTokensStructurelessFileViewProviderFactory" />
+    <lang.elementManipulator forClass="com.redhat.devtools.lsp4ij.features.semanticTokens.viewProvider.LSPSemanticTokenPsiElement" implementationClass="com.redhat.devtools.lsp4ij.features.semanticTokens.viewProvider.LSPSemanticTokenPsiElementManipulator" />
+    <lang.documentationProvider language="" implementationClass="com.redhat.devtools.lsp4ij.features.semanticTokens.viewProvider.LSPSemanticTokenDocumentationProvider" />
+    <!-- We cannot register one for plain text abstract file types, so we have to do that dynamically. Do so when a project is opened. -->
+    <postStartupActivity implementation="com.redhat.devtools.lsp4ij.features.semanticTokens.viewProvider.LSPSemanticTokensStructurelessFileViewProviderRegistrar$ProjectOpenedListener" />
+  </extensions>
+  <applicationListeners>
+    <!-- Also do so when file type associations change -->
+    <listener class="com.redhat.devtools.lsp4ij.features.semanticTokens.viewProvider.LSPSemanticTokensStructurelessFileViewProviderRegistrar$FileTypesChangedListener" topic="com.intellij.openapi.fileTypes.FileTypeListener" />
+  </applicationListeners>
+  <extensions defaultExtensionNs="com.intellij">
+    <!-- LSP textDocument/prepareTypeHierarchy request support -->
+    <typeHierarchyProvider language="TEXT" implementationClass="com.redhat.devtools.lsp4ij.features.typeHierarchy.LSPTypeHierarchyProvider" />
+    <typeHierarchyProvider language="textmate" implementationClass="com.redhat.devtools.lsp4ij.features.typeHierarchy.LSPTypeHierarchyProvider" />
+    <!-- LSP textDocument/callHierarchy request support -->
+    <callHierarchyProvider language="TEXT" implementationClass="com.redhat.devtools.lsp4ij.features.callHierarchy.LSPCallHierarchyProvider" />
+    <callHierarchyProvider language="textmate" implementationClass="com.redhat.devtools.lsp4ij.features.callHierarchy.LSPCallHierarchyProvider" />
+    <!-- LSP Find Usages (LSP) support shows:
+             - textDocument/declaration
+             - textDocument/definition
+             - textDocument/typeDefinition
+             - textDocument/references
+             - textDocument/implementation
+        -->
+    <elementDescriptionProvider implementation="com.redhat.devtools.lsp4ij.usages.LSPUsageElementDescriptionProvider" order="last" />
+    <customUsageSearcher order="last" implementation="com.redhat.devtools.lsp4ij.usages.LSPUsageSearcher" />
+    <usageTargetProvider order="last" implementation="com.redhat.devtools.lsp4ij.usages.LSPUsageTargetProvider" />
+    <findUsagesHandlerFactory order="last, before default" implementation="com.redhat.devtools.lsp4ij.usages.LSPFindUsagesHandlerFactory" />
+    <usageTypeProvider order="last" implementation="com.redhat.devtools.lsp4ij.usages.LSPUsageTypeProvider" />
+    <!-- LSP workspace/symbol request support -->
+    <gotoClassContributor id="LSPWorkspaceGotoClassContributor" implementation="com.redhat.devtools.lsp4ij.features.workspaceSymbol.LSPWorkspaceGotoClassContributor" />
+    <gotoSymbolContributor id="LSPWorkspaceGotoSymbolContributor" implementation="com.redhat.devtools.lsp4ij.features.workspaceSymbol.LSPWorkspaceGotoSymbolContributor" />
+    <!-- LSP textDocument/implementation support -->
+    <definitionsScopedSearch implementation="com.redhat.devtools.lsp4ij.features.workspaceSymbol.LSPWorkspaceImplementationsSearch" />
+    <!-- LSP textDocument/typeDefinition support -->
+    <typeDeclarationProvider implementation="com.redhat.devtools.lsp4ij.features.workspaceSymbol.LSPWorkspaceTypeDeclarationProvider" order="last" />
+    <!-- LSP textDocument/rename request support -->
+    <renameHandler id="LSPRenameHandler" implementation="com.redhat.devtools.lsp4ij.features.rename.LSPRenameHandler" order="first" />
+    <!-- willRenameFiles support -->
+    <renamePsiElementProcessor implementation="com.redhat.devtools.lsp4ij.features.refactoring.LSPRenamePsiElementProcessor" order="last" />
+    <!-- Code Action support-->
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction0</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction1</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction2</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction3</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction4</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction5</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction6</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction7</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction8</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction9</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction10</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction11</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction12</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction13</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction14</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction15</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction16</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction17</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction18</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <intentionAction>
+      <bundleName>messages.LanguageServerBundle</bundleName>
+      <className>com.redhat.devtools.lsp4ij.features.codeAction.intention.LSPIntentionAction19</className>
+      <categoryKey>lsp.intention.group.name</categoryKey>
+      <language />
+    </intentionAction>
+    <notificationGroup id="LSP/window/showMessage" displayType="BALLOON" />
+    <notificationGroup id="LSP/window/showMessageRequest" displayType="STICKY_BALLOON" />
+    <notificationGroup id="LSP4IJ general notifications" displayType="BALLOON" />
+  </extensions>
+  <!-- Actions to execute LSP features Find Implementation, etc -->
+  <actions>
+    <action id="LSP.GotoDeclaration" class="com.redhat.devtools.lsp4ij.features.declaration.LSPGoToDeclarationAction" text="LSP Declaration(s)" description="Find all declarations of the element at cursor if any.">
+      <keyboard-shortcut first-keystroke="control alt Z" keymap="$default" />
+    </action>
+    <action id="LSP.GotoTypeDefinition" class="com.redhat.devtools.lsp4ij.features.typeDefinition.LSPGoToTypeDefinitionAction" text="LSP Type Definition(s)" description="Find all type definitions of the element at cursor if any.">
+      <keyboard-shortcut first-keystroke="control alt E" keymap="$default" />
+    </action>
+    <action id="LSP.GotoImplementation" class="com.redhat.devtools.lsp4ij.features.implementation.LSPGoToImplementationAction" text="LSP Implementation(s)" description="Find all implementations of the element at cursor if any.">
+      <keyboard-shortcut first-keystroke="control alt G" keymap="$default" />
+    </action>
+    <action id="LSP.GotoReference" class="com.redhat.devtools.lsp4ij.features.references.LSPGoToReferenceAction" text="LSP Reference(s)" description="Find all references of the element at cursor if any.">
+      <keyboard-shortcut first-keystroke="control alt H" keymap="$default" />
+    </action>
+    <group>
+      <add-to-group group-id="EditorPopupMenu.GoTo" anchor="first" />
+      <add-to-group group-id="GoToMenu" anchor="before" relative-to-action="GotoDeclaration" />
+      <reference ref="LSP.GotoImplementation" />
+      <reference ref="LSP.GotoReference" />
+      <reference ref="LSP.GotoDeclaration" />
+      <reference ref="LSP.GotoTypeDefinition" />
+      <separator />
+    </group>
+  </actions>
+  <!-- Common LSP Client actions  -->
+  <actions>
+    <!-- Reuse VS Code action ids while waiting for standardization of LSP commands https://github.com/microsoft/language-server-protocol/issues/788 -->
+    <action id="editor.action.triggerSuggest" class="com.redhat.devtools.lsp4ij.commands.editor.TriggerSuggestAction" />
+    <action id="editor.action.showReferences" class="com.redhat.devtools.lsp4ij.commands.editor.ShowReferencesAction" />
+  </actions>
+  <!-- LSP consoles -->
+  <extensions defaultExtensionNs="com.intellij">
+    <projectConfigurable groupId="language" id="LanguageServers" bundle="messages.LanguageServerBundle" nonDefaultProject="true" key="language.servers" instance="com.redhat.devtools.lsp4ij.settings.LanguageServerListConfigurable" />
+    <projectService id="com.redhat.devtools.lsp4ij.settings.UserDefinedLanguageServerSettings" serviceImplementation="com.redhat.devtools.lsp4ij.settings.UserDefinedLanguageServerSettings" />
+    <toolWindow id="Language Servers" anchor="bottom" factoryClass="com.redhat.devtools.lsp4ij.console.LSPConsoleToolWindowFactory" canCloseContents="false" icon="AllIcons.Webreferences.Server" />
+  </extensions>
+  <!-- Semantic Tokens -->
+  <extensions defaultExtensionNs="com.intellij">
+    <!-- Semantic Tokens Inspector -->
+    <projectService id="com.redhat.devtools.lsp4ij.features.semanticTokens.inspector.SemanticTokensInspectorManager" serviceImplementation="com.redhat.devtools.lsp4ij.features.semanticTokens.inspector.SemanticTokensInspectorManager" />
+    <toolWindow id="Semantic Tokens Inspector" anchor="bottom" factoryClass="com.redhat.devtools.lsp4ij.features.semanticTokens.inspector.SemanticTokensInspectorToolWindowFactory" canCloseContents="false" doNotActivateOnStart="true" icon="AllIcons.General.InspectionsEye" />
+    <!-- Color Schemes -->
+    <additionalTextAttributes scheme="Dark" file="colorSchemes/SemanticTokensDark.xml" />
+    <additionalTextAttributes scheme="High contrast" file="colorSchemes/SemanticTokensHighContrast.xml" />
+    <additionalTextAttributes scheme="IntelliJ Light" file="colorSchemes/SemanticTokensIntelliJLight.xml" />
+    <additionalTextAttributes scheme="Light" file="colorSchemes/SemanticTokensLight.xml" />
+  </extensions>
+  <!-- Launch configuration Language servers -->
+  <actions resource-bundle="messages.LanguageServerBundle">
+    <action id="lsp.console.explorer.restart" class="com.redhat.devtools.lsp4ij.console.explorer.actions.RestartServerAction" icon="AllIcons.Actions.Restart" />
+    <action id="lsp.console.explorer.stop" class="com.redhat.devtools.lsp4ij.console.explorer.actions.StopServerAction" icon="AllIcons.Actions.Suspend" />
+    <action id="lsp.console.explorer.pause" class="com.redhat.devtools.lsp4ij.console.explorer.actions.PauseServerAction" icon="AllIcons.Actions.Pause" />
+    <action id="lsp.console.explorer.copy.command" class="com.redhat.devtools.lsp4ij.console.explorer.actions.CopyStartServerCommandAction" icon="AllIcons.Actions.Copy" />
+  </actions>
+  <!-- LSP link handlers -->
+  <extensions defaultExtensionNs="com.intellij">
+    <codeInsight.linkHandler prefix="#lsp-navigation/" handlerClass="com.redhat.devtools.lsp4ij.hint.LSPNavigationLinkHandler" />
+  </extensions>
+  <!-- LSP application listeners -->
+  <applicationListeners>
+    <listener topic="com.intellij.openapi.project.ProjectManagerListener" class="com.redhat.devtools.lsp4ij.ConnectDocumentToLanguageServerSetupParticipant" />
+    <listener topic="com.intellij.ide.AppLifecycleListener" class="com.redhat.devtools.lsp4ij.client.indexing.ProjectIndexingAppLifecycleListener" />
+  </applicationListeners>
+  <projectListeners>
+    <listener topic="com.intellij.refactoring.listeners.RefactoringEventListener" class="com.redhat.devtools.lsp4ij.features.refactoring.LSPRefactoringListener" />
+    <listener topic="com.intellij.codeInsight.lookup.LookupManagerListener" class="com.redhat.devtools.lsp4ij.features.completion.LSPCompletionContributor$LSPLookupManagerListener" />
+    <listener class="com.redhat.devtools.lsp4ij.client.indexing.ProjectIndexingOnlyDumbStrategy" topic="com.intellij.openapi.project.DumbService$DumbModeListener" />
+  </projectListeners>
+  <!-- DAP Support -->
+  <extensionPoints>
+    <!-- Debug adapter server extension point -->
+    <extensionPoint name="debugAdapterServer" beanClass="com.redhat.devtools.lsp4ij.dap.definitions.extension.DebugAdapterServerExtensionPointBean">
+      <with attribute="factoryClass" implements="com.redhat.devtools.lsp4ij.dap.descriptors.DebugAdapterDescriptorFactory" />
+    </extensionPoint>
+  </extensionPoints>
+  <extensions defaultExtensionNs="com.intellij">
+    <applicationService serviceImplementation="com.redhat.devtools.lsp4ij.dap.DebugAdapterManager" />
+    <programRunner id="DAPDebugRunner" implementation="com.redhat.devtools.lsp4ij.dap.DAPDebugRunner" />
+    <configurationType implementation="com.redhat.devtools.lsp4ij.dap.configurations.DAPRunConfigurationType" />
+    <xdebugger.breakpointType implementation="com.redhat.devtools.lsp4ij.dap.breakpoints.DAPBreakpointType" />
+    <completion.contributor id="DAPCompletionProcessor" language="any" implementationClass="com.redhat.devtools.lsp4ij.dap.completion.DAPCompletionProcessor" />
+    <runConfigurationProducer id="DAPRunConfigurationProvider" implementation="com.redhat.devtools.lsp4ij.dap.configurations.DAPRunConfigurationProvider" />
+    <applicationService serviceImplementation="com.redhat.devtools.lsp4ij.dap.descriptors.templates.DAPTemplateManager" />
+    <projectConfigurable groupId="debugger" id="debugAdapterDescriptorFactories" bundle="messages.DAPBundle" nonDefaultProject="true" key="debug.adapter" instance="com.redhat.devtools.lsp4ij.dap.settings.DebugAdapterServerListConfigurable" />
+    <applicationService id="UserDefinedDAPServerSettings" serviceImplementation="com.redhat.devtools.lsp4ij.dap.settings.UserDefinedDebugAdapterServerSettings" />
+  </extensions>
+</idea-plugin>

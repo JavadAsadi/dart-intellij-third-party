@@ -8,6 +8,7 @@ import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
 import com.jetbrains.lang.dart.DartBundle;
 import com.jetbrains.lang.dart.analyzer.DartAnalysisServerService;
+import com.jetbrains.lang.dart.lsp.DartLspUtil;
 import com.jetbrains.lang.dart.assists.AssistUtils;
 import com.jetbrains.lang.dart.psi.DartFile;
 import com.jetbrains.lang.dart.util.DartResolveUtil;
@@ -18,6 +19,7 @@ import org.jetbrains.annotations.Nullable;
 public final class DartImportOptimizer implements ImportOptimizer {
   @Override
   public @NotNull Runnable processFile(final @NotNull PsiFile file) {
+    if (DartLspUtil.isLspMode()) return () -> {};
     DartAnalysisServerService das = DartAnalysisServerService.getInstance(file.getProject());
     das.serverReadyForRequest();
     das.updateFilesContent();

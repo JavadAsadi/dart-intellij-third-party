@@ -16,6 +16,7 @@ import com.intellij.util.IncorrectOperationException;
 import com.jetbrains.lang.dart.DartBundle;
 import com.jetbrains.lang.dart.analyzer.DartAnalysisServerService;
 import com.jetbrains.lang.dart.assists.AssistUtils;
+import com.jetbrains.lang.dart.lsp.DartLspUtil;
 import com.jetbrains.lang.dart.assists.DartSourceEditException;
 import com.jetbrains.lang.dart.ide.refactoring.status.RefactoringStatus;
 import com.jetbrains.lang.dart.psi.DartFile;
@@ -32,6 +33,7 @@ public final class DartServerMoveDartFileHandler extends MoveFileHandler {
 
   @Override
   public boolean canProcessElement(PsiFile psiFile) {
+    if (DartLspUtil.isLspMode()) return false;
     if (!(psiFile instanceof DartFile)) {
       return false;
     }

@@ -13,6 +13,7 @@ import com.intellij.psi.PsiReference;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.jetbrains.lang.dart.analyzer.DartAnalysisServerService;
 import com.jetbrains.lang.dart.ide.completion.DartLookupObject;
+import com.jetbrains.lang.dart.lsp.DartLspUtil;
 import com.jetbrains.lang.dart.psi.*;
 import com.jetbrains.lang.dart.util.DartResolveUtil;
 import com.jetbrains.lang.dart.util.DartUrlResolver;
@@ -29,6 +30,7 @@ public final class DartDocumentationProvider implements DocumentationProvider {
 
   @Override
   public @Nls String generateDoc(final @NotNull PsiElement element, final @Nullable PsiElement originalElement) {
+    if (DartLspUtil.isLspMode()) return null;
     // in case of code completion 'element' comes from completion list and has nothing to do with 'originalElement',
     // but for Quick Doc in editor we should prefer building docs for 'originalElement' because such doc has info about propagated type
     final PsiElement elementForDocs = resolvesTo(originalElement, element) ? originalElement : element;
@@ -64,6 +66,7 @@ public final class DartDocumentationProvider implements DocumentationProvider {
 
   @Override
   public @Nls String getQuickNavigateInfo(final PsiElement element, final PsiElement originalElement) {
+    if (DartLspUtil.isLspMode()) return null;
     final PsiElement elementForInfo = resolvesTo(originalElement, element) ? originalElement : element;
     final HoverInformation hover = getSingleHover(elementForInfo);
     if (hover != null) {

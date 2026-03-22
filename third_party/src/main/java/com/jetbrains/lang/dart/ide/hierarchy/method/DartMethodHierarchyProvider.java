@@ -8,6 +8,7 @@ import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.jetbrains.lang.dart.ide.hierarchy.DartHierarchyUtil;
+import com.jetbrains.lang.dart.lsp.DartLspUtil;
 import com.jetbrains.lang.dart.psi.DartClass;
 import com.jetbrains.lang.dart.psi.DartGetterDeclaration;
 import com.jetbrains.lang.dart.psi.DartMethodDeclaration;
@@ -18,6 +19,7 @@ import org.jetbrains.annotations.Nullable;
 public final class DartMethodHierarchyProvider implements HierarchyProvider {
   @Override
   public @Nullable PsiElement getTarget(@NotNull DataContext dataContext) {
+    if (DartLspUtil.isLspMode()) return null;
     PsiElement element = DartHierarchyUtil.getResolvedElementAtCursor(dataContext);
     if ((element instanceof DartMethodDeclaration ||
          element instanceof DartGetterDeclaration ||

@@ -15,6 +15,7 @@ import com.intellij.psi.search.LocalSearchScope;
 import com.intellij.refactoring.rename.RenameHandler;
 import com.intellij.refactoring.util.CommonRefactoringUtil;
 import com.jetbrains.lang.dart.DartBundle;
+import com.jetbrains.lang.dart.lsp.DartLspUtil;
 import com.jetbrains.lang.dart.DartLanguage;
 import com.jetbrains.lang.dart.analyzer.DartAnalysisServerService;
 import com.jetbrains.lang.dart.ide.refactoring.status.RefactoringStatus;
@@ -39,6 +40,7 @@ public final class DartServerRenameHandler implements RenameHandler, TitledHandl
 
   @Override
   public boolean isAvailableOnDataContext(final @NotNull DataContext dataContext) {
+    if (DartLspUtil.isLspMode()) return false;
     final Editor editor = CommonDataKeys.EDITOR.getData(dataContext);
     if (editor == null) return false;
 

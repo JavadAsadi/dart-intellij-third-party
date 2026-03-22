@@ -1,0 +1,20 @@
+<idea-plugin>
+  <extensions defaultExtensionNs="com.redhat.devtools.lsp4ij">
+    <server id="dart-lsp" name="Dart LSP"
+            factoryClass="com.jetbrains.lang.dart.lsp.DartLspServerFactory">
+      <description><![CDATA[Dart Language Server via LSP]]></description>
+    </server>
+    <languageMapping language="Dart" serverId="dart-lsp" languageId="dart"/>
+  </extensions>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <codeInsight.parameterInfo language="Dart" order="first"
+                               implementationClass="com.redhat.devtools.lsp4ij.features.signatureHelp.LSPParameterInfoHandler"/>
+    <lang.psiStructureViewFactory language="Dart" order="first"
+                                  implementationClass="com.redhat.devtools.lsp4ij.features.documentSymbol.LSPDocumentSymbolStructureViewFactory"/>
+    <typeHierarchyProvider language="Dart" order="first"
+                           implementationClass="com.redhat.devtools.lsp4ij.features.typeHierarchy.LSPTypeHierarchyProvider"/>
+    <callHierarchyProvider language="Dart" order="first"
+                           implementationClass="com.redhat.devtools.lsp4ij.features.callHierarchy.LSPCallHierarchyProvider"/>
+  </extensions>
+</idea-plugin>
