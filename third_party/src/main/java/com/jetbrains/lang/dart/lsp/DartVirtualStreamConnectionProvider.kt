@@ -5,6 +5,7 @@
  */
 package com.jetbrains.lang.dart.lsp
 
+import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.intellij.openapi.Disposable
@@ -26,9 +27,10 @@ import org.eclipse.lsp4j.jsonrpc.messages.ResponseMessage
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
-import java.io.PipedInputStream
-import java.io.PipedOutputStream
+import java.util.concurrent.ConcurrentHashMap
 import org.eclipse.lsp4j.jsonrpc.JsonRpcException
+import org.eclipse.lsp4j.jsonrpc.messages.ResponseError
+import org.eclipse.lsp4j.jsonrpc.messages.ResponseErrorCode
 
 /**
  * This is essentially a virtual LSP language server.
@@ -47,25 +49,17 @@ class DartVirtualStreamConnectionProvider(private val project: Project) : Stream
     }
 
     // Stream for writing LSP responses from the virtual server to the lsp4ij client.
-    // I'm not even sure we need this at all.
-    val clientLspInputStream = PipedInputStream(1024 * 1024)
-    val virtualServerLspOutputStream = PipedOutputStream()
+    val responseStream = VirtualStream()
 
     // Stream for the lsp4ij client to write requests to the virtual server.
-    val virtualServerLspInputStream = PipedInputStream(1024 * 1024)
-    val clientLspOutputStream = PipedOutputStream()
-
-    init {
-        clientLspInputStream.connect(virtualServerLspOutputStream)
-        virtualServerLspInputStream.connect(clientLspOutputStream)
-    }
+    val requestStream = VirtualStream()
 
     // This stores IDs that have been used by lsp4ij for LSP-over-legacy requests to DAS.
     // There are non-lsp4ij requests that are sent as LSP-over-legacy, but we don't need to forward responses for those
     // requests to lsp4ij since lsp4ij was not the originator.
-    private val pendingLegacyIds = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val pendingLegacyIds = ConcurrentHashMap<String, JsonElement>()
     private var responseListener: ResponseListener? = null
-    private var isStopping = false
+    @Volatile private var isStopping = false
     private var clientMessageFuture: java.util.concurrent.Future<*>? = null
 
     override fun start() {
@@ -110,45 +104,81 @@ class DartVirtualStreamConnectionProvider(private val project: Project) : Stream
                     logger.debug("Ignored workspace/applyEdit message from DAS (handled by legacy bridge)")
                     return null
                 }
+                logger.debug("extractLspPayload: Extracted LSP notification/message from DAS: $msgObj")
                 return msgObj
             }
         }
 
-        if (jsonObject.has("result")) {
-            val topLevelId = if (jsonObject.has("id")) jsonObject.get("id").asString else null
-            if (topLevelId != null && pendingLegacyIds.remove(topLevelId) != null) {
-                val result = jsonObject.get("result").asJsonObject
-                if (result.has(LSP_RESPONSE_KEY)) {
-                    return result.get(LSP_RESPONSE_KEY).asJsonObject
+        val topLevelId = if (jsonObject.has("id")) jsonObject.get("id").asString else null
+        if (topLevelId != null) {
+            val lspIdElement = pendingLegacyIds[topLevelId]
+            if (lspIdElement != null) {
+                if (jsonObject.has("result")) {
+                    pendingLegacyIds.remove(topLevelId)
+                    val result = jsonObject.get("result").asJsonObject
+                    if (result.has(LSP_RESPONSE_KEY)) {
+                        val resultPayload = result.get(LSP_RESPONSE_KEY).asJsonObject
+                        logger.debug("extractLspPayload: Extracted successful LSP response for legacyId=$topLevelId (lspId=$lspIdElement): $resultPayload")
+                        return resultPayload
+                    } else {
+                        logger.debug("extractLspPayload: DAS response has result but is missing '$LSP_RESPONSE_KEY': $jsonObject")
+                    }
+                } else if (jsonObject.has("error")) {
+                    pendingLegacyIds.remove(topLevelId)
+                    val error = jsonObject.get("error").asJsonObject
+                    logger.warn("Received legacy error from DAS for legacyId=$topLevelId (lspId=$lspIdElement): $error")
+                    val lspErrorResponse = JsonObject()
+                    lspErrorResponse.addProperty("jsonrpc", JSONRPC_VERSION)
+                    lspErrorResponse.add("id", lspIdElement)
+                    
+                    val lspError = JsonObject()
+                    lspError.addProperty("code", error.get("code")?.asInt ?: -32603)
+                    lspError.addProperty("message", error.get("message")?.asString ?: "Unknown DAS error")
+                    if (error.has("data")) {
+                        lspError.add("data", error.get("data"))
+                    }
+                    lspErrorResponse.add("error", lspError)
+                    logger.debug("extractLspPayload: Created LSP error response for legacyId=$topLevelId (lspId=$lspIdElement): $lspErrorResponse")
+                    return lspErrorResponse
                 }
+            } else {
+                logger.debug("extractLspPayload: Ignored DAS response for legacyId=$topLevelId because it is not in pendingLegacyIds")
             }
+        } else {
+            logger.debug("extractLspPayload: Ignored DAS message without top-level id: $jsonObject")
         }
 
         return null
     }
 
     private fun processLspClientMessages() {
-        val requestReader = StreamMessageProducer(virtualServerLspInputStream, JSON_HANDLER)
+        val requestReader = StreamMessageProducer(requestStream, JSON_HANDLER)
         try {
             requestReader.listen { message ->
-                logger.debug("Message from lsp4ij: $message")
-                when (message) {
-                    is RequestMessage -> handleRequestMessage(message)
-                    is NotificationMessage -> handleNotificationMessage(message)
-                    else -> logger.info("Ignored unrecognized message type from lsp4ij request: $message")
+                try {
+                    logger.debug("LSP message from lsp4ij: $message")
+                    when (message) {
+                        is RequestMessage -> handleRequestMessage(message)
+                        is NotificationMessage -> handleNotificationMessage(message)
+                        else -> logger.debug("Ignored unrecognized message type from lsp4ij request: $message")
+                    }
+                } catch (e: Exception) {
+                    logger.error("Error processing LSP message from lsp4ij: $message", e)
                 }
             }
         } catch (e: JsonRpcException) {
             val cause = e.cause
             if (cause is IOException) {
                 if (isStopping) {
-                    logger.info("Connection closed during shutdown: ${cause.message}")
+                    logger.info("Connection closed during shutdown: ${cause.message}", e)
                 } else {
-                    logger.warn("Connection closed unexpectedly: ${cause.message}")
+                    logger.warn("Connection closed unexpectedly: ${cause.message}", e)
                 }
             } else {
                 logger.error("Error listening for lsp4ij messages", e)
             }
+        } catch (e: Exception) {
+            logger.error("Unexpected error in LSP message listener loop", e)
         }
     }
 
@@ -177,7 +207,7 @@ class DartVirtualStreamConnectionProvider(private val project: Project) : Stream
             val lspIdToCancel = if (cancelParamsObj.has("id")) cancelParamsObj.get("id").asString else null
             if (lspIdToCancel == null) return
 
-            val entry = pendingLegacyIds.entries.firstOrNull { it.value == lspIdToCancel } ?: return
+            val entry = pendingLegacyIds.entries.firstOrNull { it.value.asString == lspIdToCancel } ?: return
             val legacyIdToCancel = entry.key
             pendingLegacyIds.remove(legacyIdToCancel)
 
@@ -189,9 +219,15 @@ class DartVirtualStreamConnectionProvider(private val project: Project) : Stream
             val paramsObj = JsonObject()
             paramsObj.addProperty("id", legacyIdToCancel)
             cancelReq.add("params", paramsObj)
-            DartAnalysisServerService.getInstance(project).sendRequest(cancelReqId, cancelReq)
+
+            try {
+                DartAnalysisServerService.getInstance(project).sendRequest(cancelReqId, cancelReq)
+            } catch (e: Exception) {
+                logger.error("Failed to send cancelRequest to DAS: $cancelReq", e)
+            }
         } else if (message.method == "exit") {
             logger.info("Received exit notification from lsp4ij, stopping connection provider")
+            isStopping = true
             ApplicationManager.getApplication().executeOnPooledThread { stop() }
         } else {
             logger.info("Ignored unimplemented method from lsp4ij notification: ${message.method}")
@@ -207,16 +243,25 @@ class DartVirtualStreamConnectionProvider(private val project: Project) : Stream
     }
 
     private fun handleShutdownRequest(message: RequestMessage) {
+        logger.info("Received shutdown request from lsp4ij, transitioning to stopping state")
+        isStopping = true
         sendSuccessResponse(message.id, null)
     }
 
 
     private fun forwardLspRequestToDas(message: RequestMessage, dartAnalysisService: DartAnalysisServerService) {
         val rawId = message.id ?: return
-        val lspId = JSON_HANDLER.gson.toJsonTree(rawId).asString
+        val lspIdElement = JSON_HANDLER.gson.toJsonTree(rawId)
+
+        if (!dartAnalysisService.isServerProcessActive) {
+            logger.warn("Cannot forward LSP request to DAS because DAS process is not active: $message")
+            sendErrorResponse(message.id, ResponseErrorCode.InternalError, "Dart Analysis Server is not active")
+            return
+        }
+
         val legacyRequest = JsonObject()
         val legacyId = dartAnalysisService.generateUniqueId()
-        pendingLegacyIds[legacyId] = lspId
+        pendingLegacyIds[legacyId] = lspIdElement
         legacyRequest.addProperty("id", legacyId)
         legacyRequest.addProperty("method", "lsp.handle")
 
@@ -224,8 +269,14 @@ class DartVirtualStreamConnectionProvider(private val project: Project) : Stream
         params.add("lspMessage", JSON_HANDLER.gson.toJsonTree(message).asJsonObject)
         legacyRequest.add("params", params)
 
-        // Forward to DAS.
-        dartAnalysisService.sendRequest(legacyId, legacyRequest)
+        try {
+            // Forward to DAS.
+            dartAnalysisService.sendRequest(legacyId, legacyRequest)
+        } catch (e: Exception) {
+            logger.error("Failed to send request to DAS: $legacyRequest", e)
+            pendingLegacyIds.remove(legacyId)
+            sendErrorResponse(message.id, ResponseErrorCode.InternalError, "Failed to send request to Dart Analysis Server: ${e.message}")
+        }
     }
 
     private fun sendResponseToClient(response: ResponseMessage) {
@@ -241,6 +292,14 @@ class DartVirtualStreamConnectionProvider(private val project: Project) : Stream
         sendResponseToClient(response)
     }
 
+    private fun sendErrorResponse(messageId: String?, errorCode: ResponseErrorCode, message: String) {
+        val response = ResponseMessage()
+        response.jsonrpc = JSONRPC_VERSION
+        response.id = messageId
+        response.error = ResponseError(errorCode, message, null)
+        sendResponseToClient(response)
+    }
+
     private fun enqueueResponse(jsonString: String) {
         val service = project.getService(DartLspProjectService::class.java)
         val producer = service.producer
@@ -253,11 +312,11 @@ class DartVirtualStreamConnectionProvider(private val project: Project) : Stream
     }
 
     override fun getInputStream(): InputStream? {
-        return clientLspInputStream
+        return responseStream
     }
 
     override fun getOutputStream(): OutputStream? {
-        return clientLspOutputStream
+        return requestStream.outputStream
     }
 
     override fun stop() {
@@ -271,10 +330,8 @@ class DartVirtualStreamConnectionProvider(private val project: Project) : Stream
         service.producer?.stop()
         service.producer = null
 
-        clientLspInputStream.close()
-        virtualServerLspOutputStream.close()
-        virtualServerLspInputStream.close()
-        clientLspOutputStream.close()
+        responseStream.close()
+        requestStream.close()
 
         // Wait for the client message thread to terminate.
         // This is primarily needed for legacy unit tests to prevent ThreadLeakTracker from failing tests
@@ -292,3 +349,5 @@ class DartVirtualStreamConnectionProvider(private val project: Project) : Stream
         pendingLegacyIds.clear()
     }
 }
+
+
