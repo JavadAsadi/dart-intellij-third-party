@@ -153,6 +153,9 @@ public class RequestUtilities {
     else if (object instanceof String) {
       return new JsonPrimitive((String)object);
     }
+    else if (object instanceof JsonElement) {
+      return (JsonElement)object;
+    }
     else if (object instanceof List<?>) {
       List<?> list = (List<?>)object;
       JsonArray jsonArray = new JsonArray();
@@ -1051,36 +1054,15 @@ public class RequestUtilities {
   public static JsonObject generateClientCapabilities(String idValue,
                                                       List<String> requests,
                                                       boolean supportsUris,
-                                                      boolean supportsWorkspaceApplyEdits) {
+                                                      Object lspCapabilities) {
     JsonObject params = new JsonObject();
     params.add(REQUESTS, buildJsonElement(requests));
     if (supportsUris) {
       params.addProperty("supportsUris", supportsUris);
     }
-
-    JsonObject lspCapabilities = new JsonObject();
-
-    if (supportsWorkspaceApplyEdits) {
-      JsonObject workspace = new JsonObject();
-      workspace.addProperty("applyEdit", true);
-
-      JsonObject workspaceEdit = new JsonObject();
-      workspaceEdit.addProperty("documentChanges", false);
-      workspace.add("workspaceEdit", workspaceEdit);
-
-      lspCapabilities.add("workspace", workspace);
+    if (lspCapabilities != null) {
+      params.add("lspCapabilities", buildJsonElement(lspCapabilities));
     }
-
-    JsonObject textDocument = new JsonObject();
-
-    JsonObject definition = new JsonObject();
-    definition.addProperty("linkSupport", true);
-    textDocument.add("definition", definition);
-
-    lspCapabilities.add("textDocument", textDocument);
-
-    params.add("lspCapabilities", lspCapabilities);
-
     return buildJsonObjectRequest(idValue, METHOD_SERVER_SET_CAPABILITIES, params);
   }
 
