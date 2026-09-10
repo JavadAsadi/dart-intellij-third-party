@@ -16,44 +16,33 @@ package com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.ser
 import com.google.gson.JsonObject;
 
 /**
- * A {@link Flag} represents a single VM command line flag.
+ * See getPerfettoVMTimeline;
  */
 @SuppressWarnings({"WeakerAccess", "unused"})
-public class Flag extends Element {
+public class PerfettoTimeline extends Response {
 
-  public Flag(JsonObject json) {
+  public PerfettoTimeline(JsonObject json) {
     super(json);
   }
 
   /**
-   * A description of the flag.
+   * The duration of time covered by the trace.
    */
-  public String getComment() {
-    return getAsString("comment");
+  public int getTimeExtentMicros() {
+    return getAsInt("timeExtentMicros");
   }
 
   /**
-   * Has this flag been modified from its default setting?
+   * The start of the period of time covered by the trace.
    */
-  public boolean getModified() {
-    return getAsBoolean("modified");
+  public int getTimeOriginMicros() {
+    return getAsInt("timeOriginMicros");
   }
 
   /**
-   * The name of the flag.
+   * A Base64 string representing the requested timeline trace in Perfetto's proto format.
    */
-  public String getName() {
-    return getAsString("name");
-  }
-
-  /**
-   * The value of this flag as a string.
-   *
-   * If this property is absent, then the value of the flag was nullptr.
-   *
-   * Can return <code>null</code>.
-   */
-  public String getValueAsString() {
-    return getAsString("valueAsString");
+  public String getTrace() {
+    return getAsString("trace");
   }
 }
