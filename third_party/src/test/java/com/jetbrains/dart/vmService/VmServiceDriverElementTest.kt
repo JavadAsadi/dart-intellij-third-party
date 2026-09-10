@@ -10,6 +10,7 @@ import com.google.gson.JsonObject
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.Instance
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.InstanceKind
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.InstanceRef
+import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.PerfettoTimeline
 import junit.framework.TestCase
 
 class VmServiceDriverElementTest : TestCase() {
@@ -27,5 +28,18 @@ class VmServiceDriverElementTest : TestCase() {
     val instance = Instance(json)
     assertEquals(InstanceKind.UserTag, instance.kind)
     assertEquals("manual-test-tag", instance.label)
+  }
+
+  fun testPerfettoTimeline() {
+    val json = JsonObject().apply {
+      addProperty("trace", "AA==")
+      addProperty("timeOriginMicros", 3_000_000_000L)
+      addProperty("timeExtentMicros", 4_000_000_000L)
+    }
+
+    val timeline = PerfettoTimeline(json)
+    assertEquals("AA==", timeline.trace)
+    assertEquals(3_000_000_000L, timeline.timeOriginMicros)
+    assertEquals(4_000_000_000L, timeline.timeExtentMicros)
   }
 }
