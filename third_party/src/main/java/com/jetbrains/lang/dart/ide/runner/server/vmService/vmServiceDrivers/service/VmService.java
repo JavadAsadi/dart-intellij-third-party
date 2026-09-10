@@ -444,7 +444,7 @@ public class VmService extends VmServiceBase {
    * @param timeOriginMicros This parameter is optional and may be null.
    * @param timeExtentMicros This parameter is optional and may be null.
    */
-  public void getPerfettoVMTimeline(Integer timeOriginMicros, Integer timeExtentMicros, PerfettoTimelineConsumer consumer) {
+  public void getPerfettoVMTimeline(Long timeOriginMicros, Long timeExtentMicros, PerfettoTimelineConsumer consumer) {
     final JsonObject params = new JsonObject();
     if (timeOriginMicros != null) params.addProperty("timeOriginMicros", timeOriginMicros);
     if (timeExtentMicros != null) params.addProperty("timeExtentMicros", timeExtentMicros);

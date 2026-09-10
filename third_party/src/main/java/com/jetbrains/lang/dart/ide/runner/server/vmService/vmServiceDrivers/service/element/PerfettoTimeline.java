@@ -28,15 +28,15 @@ public class PerfettoTimeline extends Response {
   /**
    * The duration of time covered by the trace.
    */
-  public int getTimeExtentMicros() {
-    return getAsInt("timeExtentMicros");
+  public long getTimeExtentMicros() {
+    return json.get("timeExtentMicros") == null ? -1 : json.get("timeExtentMicros").getAsLong();
   }
 
   /**
    * The start of the period of time covered by the trace.
    */
-  public int getTimeOriginMicros() {
-    return getAsInt("timeOriginMicros");
+  public long getTimeOriginMicros() {
+    return json.get("timeOriginMicros") == null ? -1 : json.get("timeOriginMicros").getAsLong();
   }
 
   /**
