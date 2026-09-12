@@ -1,18 +1,36 @@
-# VM Service Driver Updater Contract
+# Incremental VM Service Driver Updater Contract
 
-The audit bundle is an input contract for a future update mode of this same skill. That mode is deliberately not implemented yet.
+The audit bundle is immutable evidence for choosing and implementing one protocol revision. Validate
+`report.json` against its bundled schema, verify `manifest.json`, confirm the SDK target identity,
+and compare plugin precondition hashes before relying on it. Regenerate stale evidence.
 
-Before changing source, validate `report.json` against the bundled `report.schema.json`, verify every `manifest.json` hash, confirm the target SDK identity, and compare every plugin precondition hash. Stop if any check fails; regenerate the audit instead of using stale evidence.
+## Select one candidate span
 
-SDK commits in `change_candidates` are ordered evidence, not feature boundaries. Group related candidates into one meaningful user-visible or protocol-level feature, explain that feature to the human, and wait for “next.” Then propose applicable unit, integration, and mocked test strategies and wait for the human to choose.
+The recorded baseline is a historical generation anchor and may be older than the plugin. Determine
+the plugin's current version from `VmService.java`. In `change_candidates`, find the candidate that
+first transitions into that version; for the baseline version, use the baseline itself. Select every
+following candidate up to and including the first candidate whose `protocol_after` differs. That
+first new value is the sole target version.
 
-For each approved feature:
+Include same-version candidates inside that span. For example, a documentation or type change made
+while the specification still says 4.4 belongs to the 4.4-to-4.5 update if it precedes the commit
+that first declares 4.5. Do not include candidates after the target-version transition.
 
-1. Write the chosen test first and demonstrate the intended red state. Prefer a compilable failing test with mocks or fakes. If the missing Java API makes compilation impossible, explain that expected compile failure and proceed only after human acceptance.
-2. Implement only that feature, using the report's normalized target output as evidence rather than blindly replacing the driver tree.
-3. Preserve all plugin-owned files and locally customized generated logic. If `overlapping_changes` is non-empty, stop for a human decision instead of overwriting it.
-4. Run the selected tests, Java compilation, and `VmServiceTest`.
-5. On failure, explain the cause, correct it, and retry before selecting another feature.
-6. Once the feature passes, summarize it and wait before advancing.
+If the current version has no matching entry, the versions are non-monotonic, or there is no later
+transition, do not guess. Report that the plugin is up to date or that history is insufficient.
 
-After every feature is complete, run final validation, update `references/baseline.json` to the pinned target specification and SDK commit, and rerun the audit. Completion requires an `up_to_date` report with valid hashes.
+## Use generated output safely
+
+Reconstruct or generate the Java trees at the current-version and target-version commits and compare
+that incremental delta with the working tree. The report's net baseline-to-latest readiness is not a
+substitute for this incremental comparison when its historical baseline is older than the plugin.
+
+Treat generated additions and changes as the expected API shape, then review them for Java type
+safety, nullability, repository conventions, and existing customizations. Preserve plugin-owned
+files and intentional deviations. If a selected change overlaps a local customization, stop for a
+human decision instead of replacing it.
+
+The candidate span remains fixed through the test-first pauses. Because test and usage sources are
+manifest inputs, regenerate and validate a fresh bundle after adding the accepted tests and before
+production implementation. Confirm that the new report selects the same span; if the SDK or driver
+inputs changed enough to alter it, tell the user and stop rather than silently changing scope.

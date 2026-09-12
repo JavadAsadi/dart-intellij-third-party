@@ -1,4 +1,0 @@
-interface:
-  display_name: "Sync VM Service Drivers"
-  short_description: "Audit and synchronize VM Service drivers"
-  default_prompt: "Use $sync-vm-service-drivers to audit the plugin VM Service drivers against the Dart SDK."
