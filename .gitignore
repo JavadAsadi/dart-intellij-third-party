@@ -1,4 +1,7 @@
 # Mac Finder settings
 .DS_Store
 
+/.idea/
 /.vscode
+/dart-sdk/
+.dart_tool/

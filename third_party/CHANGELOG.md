@@ -1,12 +1,14 @@
 ## Unreleased
 
 ### Added
+- Inlay hints for types and parameter names, configurable in Settings | Editor | Inlay Hints (JetBrains LSP; requires Dart SDK 3.14.0-139.0.dev or newer) (#617)
 
 ### Changed
 
 ### Removed
 
 ### Fixed
+- Remove ambiguous "Find Usages Of" popup when invoking Find Usages with LSP references enabled (#643)
 
 ## 509.0.0
 

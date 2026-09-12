@@ -16,6 +16,9 @@ package com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.ser
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
+/**
+ * See getVMTimeline;
+ */
 @SuppressWarnings({"WeakerAccess", "unused"})
 public class Timeline extends Response {
 
