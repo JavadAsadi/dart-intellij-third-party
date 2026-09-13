@@ -4,13 +4,9 @@
  * found in the LICENSE file.
  */
 
-package com.jetbrains.dart.vmService
+package com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element
 
 import com.google.gson.JsonObject
-import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.Instance
-import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.InstanceKind
-import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.InstanceRef
-import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.PerfettoTimeline
 import junit.framework.TestCase
 
 class VmServiceDriverElementTest : TestCase() {
@@ -41,5 +37,26 @@ class VmServiceDriverElementTest : TestCase() {
     assertEquals("AA==", timeline.trace)
     assertEquals(3_000_000_000L, timeline.timeOriginMicros)
     assertEquals(4_000_000_000L, timeline.timeExtentMicros)
+  }
+
+  fun testPerfettoCpuSamples() {
+    val json = JsonObject().apply {
+      addProperty("samplePeriod", 1_000)
+      addProperty("maxStackDepth", 128)
+      addProperty("sampleCount", 42)
+      addProperty("timeOriginMicros", 3_000_000_000L)
+      addProperty("timeExtentMicros", 4_000_000_000L)
+      addProperty("pid", 12_345)
+      addProperty("samples", "AA==")
+    }
+
+    val samples = PerfettoCpuSamples(json)
+    assertEquals(1_000, samples.samplePeriod)
+    assertEquals(128, samples.maxStackDepth)
+    assertEquals(42, samples.sampleCount)
+    assertEquals(3_000_000_000L, samples.timeOriginMicros)
+    assertEquals(4_000_000_000L, samples.timeExtentMicros)
+    assertEquals(12_345, samples.pid)
+    assertEquals("AA==", samples.samples)
   }
 }
