@@ -13,6 +13,7 @@
  */
 package com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 /**
@@ -64,13 +65,15 @@ public class PerfettoCpuSamples extends Response {
    * The duration of time covered by the returned samples.
    */
   public long getTimeExtentMicros() {
-    return json.get("timeExtentMicros") == null ? -1 : json.get("timeExtentMicros").getAsLong();
+    final JsonElement element = json.get("timeExtentMicros");
+    return element == null || element.isJsonNull() ? -1 : element.getAsLong();
   }
 
   /**
    * The start of the period of time in which the returned samples were collected.
    */
   public long getTimeOriginMicros() {
-    return json.get("timeOriginMicros") == null ? -1 : json.get("timeOriginMicros").getAsLong();
+    final JsonElement element = json.get("timeOriginMicros");
+    return element == null || element.isJsonNull() ? -1 : element.getAsLong();
   }
 }

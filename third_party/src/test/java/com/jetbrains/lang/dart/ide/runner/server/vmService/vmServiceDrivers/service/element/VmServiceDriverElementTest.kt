@@ -6,6 +6,7 @@
 
 package com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element
 
+import com.google.gson.JsonNull
 import com.google.gson.JsonObject
 import junit.framework.TestCase
 
@@ -58,5 +59,16 @@ class VmServiceDriverElementTest : TestCase() {
     assertEquals(4_000_000_000L, samples.timeExtentMicros)
     assertEquals(12_345, samples.pid)
     assertEquals("AA==", samples.samples)
+  }
+
+  fun testPerfettoCpuSamplesWithNullTimestamps() {
+    val json = JsonObject().apply {
+      add("timeOriginMicros", JsonNull.INSTANCE)
+      add("timeExtentMicros", JsonNull.INSTANCE)
+    }
+
+    val samples = PerfettoCpuSamples(json)
+    assertEquals(-1L, samples.timeOriginMicros)
+    assertEquals(-1L, samples.timeExtentMicros)
   }
 }
