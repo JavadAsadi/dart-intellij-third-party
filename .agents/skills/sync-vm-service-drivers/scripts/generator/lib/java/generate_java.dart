@@ -1115,8 +1115,7 @@ class TypeRef {
         writer.addLine('return getListInt("$propertyName");');
       } else {
         if (propertyName == 'timestamp') {
-          writer.addLine('return json.get("$propertyName") == null ? '
-              '-1 : json.get("$propertyName").getAsLong();');
+          writer.addLine('return getAsLong("$propertyName");');
         } else {
           writer.addLine('return getAsInt("$propertyName");');
         }

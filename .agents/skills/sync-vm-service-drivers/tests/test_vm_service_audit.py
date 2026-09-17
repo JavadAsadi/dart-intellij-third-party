@@ -311,6 +311,58 @@ class SourceSelectionTest(unittest.TestCase):
 
 
 class ContractValidationTest(unittest.TestCase):
+    def test_generator_integrity_supports_documented_local_patches(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            generator = Path(temporary)
+            upstream = generator / "upstream.dart"
+            patched = generator / "patched.dart"
+            upstream.write_text("upstream", encoding="utf-8")
+            patched.write_text("patched", encoding="utf-8")
+            metadata = {
+                "files": {
+                    upstream.name: hashlib.sha256(upstream.read_bytes()).hexdigest()
+                },
+                "local_patches": {
+                    patched.name: {
+                        "upstream_sha256": "0" * 64,
+                        "sha256": hashlib.sha256(patched.read_bytes()).hexdigest(),
+                        "description": "Test patch.",
+                    }
+                },
+            }
+            (generator / "UPSTREAM.json").write_text(
+                json.dumps(metadata), encoding="utf-8"
+            )
+
+            self.assertEqual(metadata, audit.verify_generator(generator))
+
+            patched.write_text("tampered", encoding="utf-8")
+            with self.assertRaisesRegex(audit.AuditError, "hash mismatch"):
+                audit.verify_generator(generator)
+
+    def test_generator_integrity_rejects_ambiguous_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            generator = Path(temporary)
+            source = generator / "source.dart"
+            source.write_text("source", encoding="utf-8")
+            digest = hashlib.sha256(source.read_bytes()).hexdigest()
+            metadata = {
+                "files": {source.name: digest},
+                "local_patches": {
+                    source.name: {
+                        "upstream_sha256": digest,
+                        "sha256": digest,
+                        "description": "Ambiguous patch.",
+                    }
+                },
+            }
+            (generator / "UPSTREAM.json").write_text(
+                json.dumps(metadata), encoding="utf-8"
+            )
+
+            with self.assertRaisesRegex(audit.AuditError, "both upstream"):
+                audit.verify_generator(generator)
+
     def test_schema_validator_rejects_unknown_keys_and_bad_patterns(self) -> None:
         schema = {
             "type": "object",

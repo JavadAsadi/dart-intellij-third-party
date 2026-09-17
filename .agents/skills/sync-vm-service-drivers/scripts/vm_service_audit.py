@@ -671,7 +671,21 @@ def load_source(args: Any, repo_root: Path, baseline: Mapping[str, Any]) -> Sour
 
 def verify_generator(generator_root: Path) -> dict[str, Any]:
     metadata = json.loads((generator_root / "UPSTREAM.json").read_text("utf-8"))
-    for relative, expected in sorted(metadata["files"].items()):
+    upstream_files = metadata["files"]
+    local_patches = metadata.get("local_patches", {})
+    overlap = set(upstream_files) & set(local_patches)
+    if overlap:
+        raise AuditError(
+            "Generator files cannot be both upstream and locally patched: "
+            + ", ".join(sorted(overlap))
+        )
+
+    expected_hashes = dict(upstream_files)
+    expected_hashes.update(
+        (relative, patch["sha256"])
+        for relative, patch in local_patches.items()
+    )
+    for relative, expected in sorted(expected_hashes.items()):
         path = generator_root / relative
         actual = sha256_file(path)
         if actual != expected:
