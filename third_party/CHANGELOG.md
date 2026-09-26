@@ -2,12 +2,17 @@
 
 ### Added
 - Inlay hints for types and parameter names, configurable in Settings | Editor | Inlay Hints (JetBrains LSP; requires Dart SDK 3.14.0-139.0.dev or newer) (#617)
+- Per-category options for the Dart inlay hints in Settings | Editor | Inlay Hints (JetBrains LSP; requires Dart SDK 3.14.0-258.0.dev or newer) (#679)
+- Updating Dart imports when renaming or moving files and directories via LSP `workspace/willRenameFiles` (experimental feature) (#638)
+- Closing labels populated using Language Server Protocol (LSP) publishClosingLabels notifications (experimental feature; requires Dart SDK 3.14.0-219.0.dev or newer) (#400)
+- Quick fixes, assists, source actions, and refactorings via LSP code actions (experimental feature; requires Dart SDK 3.14.0-137.0.dev or newer) (#526)
 
 ### Changed
 
 ### Removed
 
 ### Fixed
+- Support lsp4j 1.0.0 in IntelliJ 2026.3 (#671)
 - Remove ambiguous "Find Usages Of" popup when invoking Find Usages with LSP references enabled (#643)
 
 ## 509.0.0

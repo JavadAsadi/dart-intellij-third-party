@@ -8,6 +8,7 @@ package com.jetbrains.lang.dart.lsp
 import com.google.dart.server.AnalysisServerSocket
 import com.google.dart.server.Consumer
 import com.google.dart.server.DartLspWorkspaceApplyEditRequestConsumer
+import com.google.dart.server.DartLspWorkspaceConfigurationConsumer
 import com.google.dart.server.ResponseListener
 import com.google.dart.server.ShowMessageRequestConsumer
 import com.google.dart.server.internal.remote.ByteLineReaderStream
@@ -15,19 +16,30 @@ import com.google.dart.server.internal.remote.RemoteAnalysisServerImpl
 import com.google.dart.server.internal.remote.RequestSink
 import com.google.dart.server.internal.remote.ResponseStream
 import com.google.gson.JsonObject
+import com.google.gson.reflect.TypeToken
 import com.jetbrains.lang.dart.DartCodeInsightFixtureTestCase
 import com.jetbrains.lang.dart.analyzer.DartAnalysisServerService
 import org.dartlang.analysis.server.protocol.DartLspApplyWorkspaceEditParams
 import org.dartlang.analysis.server.protocol.MessageAction
+import org.eclipse.lsp4j.ApplyWorkspaceEditParams
+import org.eclipse.lsp4j.ApplyWorkspaceEditResponse
 import org.eclipse.lsp4j.CallHierarchyIncomingCallsParams
 import org.eclipse.lsp4j.CallHierarchyItem
 import org.eclipse.lsp4j.CallHierarchyOutgoingCallsParams
 import org.eclipse.lsp4j.CallHierarchyPrepareParams
+import org.eclipse.lsp4j.CodeAction
+import org.eclipse.lsp4j.CodeActionContext
+import org.eclipse.lsp4j.CodeActionParams
+import org.eclipse.lsp4j.Command
+import org.eclipse.lsp4j.DidChangeConfigurationParams
 import org.eclipse.lsp4j.DocumentHighlightKind
 import org.eclipse.lsp4j.DocumentHighlightParams
+import org.eclipse.lsp4j.ExecuteCommandParams
+import org.eclipse.lsp4j.FileRename
 import org.eclipse.lsp4j.HoverParams
 import org.eclipse.lsp4j.InlayHintKind
 import org.eclipse.lsp4j.InlayHintParams
+import org.eclipse.lsp4j.InitializeParams
 import org.eclipse.lsp4j.MessageActionItem
 import org.eclipse.lsp4j.MessageParams
 import org.eclipse.lsp4j.Position
@@ -35,6 +47,7 @@ import org.eclipse.lsp4j.PublishDiagnosticsParams
 import org.eclipse.lsp4j.Range
 import org.eclipse.lsp4j.ReferenceContext
 import org.eclipse.lsp4j.ReferenceParams
+import org.eclipse.lsp4j.RenameFilesParams
 import org.eclipse.lsp4j.ShowMessageRequestParams
 import org.eclipse.lsp4j.SymbolKind
 import org.eclipse.lsp4j.TextDocumentIdentifier
@@ -43,7 +56,12 @@ import org.eclipse.lsp4j.TypeHierarchyItem
 import org.eclipse.lsp4j.TypeHierarchyPrepareParams
 import org.eclipse.lsp4j.TypeHierarchySubtypesParams
 import org.eclipse.lsp4j.TypeHierarchySupertypesParams
+import org.eclipse.lsp4j.WorkspaceEdit
+import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.eclipse.lsp4j.services.LanguageClient
+import org.eclipse.lsp4j.jsonrpc.Launcher
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
@@ -55,6 +73,8 @@ class DartBridgeLspServerTest : DartCodeInsightFixtureTestCase() {
     private lateinit var mockServer: RemoteAnalysisServerImpl
     private val mockClient = MockLanguageClient()
     private val capturedRequests = CopyOnWriteArrayList<JsonObject>()
+    private val capturedResponses = CopyOnWriteArrayList<JsonObject>()
+    private val capturedNotifications = CopyOnWriteArrayList<JsonObject>()
 
     override fun setUp() {
         super.setUp()
@@ -91,6 +111,14 @@ class DartBridgeLspServerTest : DartCodeInsightFixtureTestCase() {
                 capturedRequests.add(request)
             }
 
+            override fun sendResponseToServer(response: JsonObject) {
+                capturedResponses.add(response)
+            }
+
+            override fun sendNotificationToServer(notification: JsonObject) {
+                capturedNotifications.add(notification)
+            }
+
             override fun server_openUrlRequest(url: String?) {}
 
             override fun server_showMessageRequest(
@@ -103,6 +131,11 @@ class DartBridgeLspServerTest : DartCodeInsightFixtureTestCase() {
             override fun lsp_workspaceApplyEdit(
                 params: DartLspApplyWorkspaceEditParams?,
                 consumer: DartLspWorkspaceApplyEditRequestConsumer?
+            ) {}
+
+            override fun lsp_workspaceConfiguration(
+                sections: MutableList<String?>?,
+                consumer: DartLspWorkspaceConfigurationConsumer?
             ) {}
         }
 
@@ -127,6 +160,7 @@ class DartBridgeLspServerTest : DartCodeInsightFixtureTestCase() {
             dasSdkVersionField.set(das, null)
             
             capturedRequests.clear()
+            capturedNotifications.clear()
         } finally {
             super.tearDown()
         }
@@ -197,6 +231,106 @@ class DartBridgeLspServerTest : DartCodeInsightFixtureTestCase() {
         assertTrue("Response contents should contain Hover Content", result.contents.toString().contains("Hover Content"))
     }
 
+    fun testCodeActionRequest() {
+        val params = CodeActionParams().apply {
+            textDocument = TextDocumentIdentifier("file://test.dart")
+            range = Range(Position(0, 0), Position(0, 5))
+            context = CodeActionContext(emptyList())
+        }
+
+        val future = bridgeServer.codeAction(params)
+
+        val jsonObject = capturedRequests.find { it.get("method")?.asString == "lsp.handle" }
+        assertNotNull("An lsp.handle request should be sent to DAS", jsonObject)
+        assertEquals("123", jsonObject!!.get("id").asString)
+
+        val lspMessage = jsonObject.getAsJsonObject("params").getAsJsonObject("lspMessage")
+        assertEquals("123", lspMessage.get("id").asString)
+        assertEquals("textDocument/codeAction", lspMessage.get("method").asString)
+
+        val responseJson = """
+            {
+              "id": "123",
+              "result": {
+                "lspResponse": {
+                  "jsonrpc": "2.0",
+                  "id": "123",
+                  "result": [
+                    {
+                      "title": "Sort Members",
+                      "kind": "source.sortMembers",
+                      "command": {
+                        "command": "dart.edit.sortMembers",
+                        "title": "Sort Members"
+                      }
+                    },
+                    {
+                      "title": "Import library 'dart:io'",
+                      "kind": "quickfix.import.librarySdk",
+                      "command": {
+                        "command": "dart.edit.codeAction.apply",
+                        "title": "Import library 'dart:io'"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+        """.trimIndent()
+
+        capturedListener.onResponse(responseJson)
+
+        val result = future.get(5, TimeUnit.SECONDS)
+        assertEquals(2, result.size)
+
+        // First action should be wrapped as Right(CodeAction)
+        assertTrue("First item should be Right (CodeAction)", result[0].isRight)
+        assertEquals("Sort Members", result[0].right.title)
+        assertEquals("source.sortMembers", result[0].right.kind)
+        assertEquals("dart.edit.sortMembers", result[0].right.command.command)
+
+        // Second action should be wrapped as Right(CodeAction)
+        assertTrue("Second item should be Right (CodeAction)", result[1].isRight)
+        assertEquals("Import library 'dart:io'", result[1].right.title)
+        assertEquals("quickfix.import.librarySdk", result[1].right.kind)
+        assertNotNull(result[1].right.command)
+        assertEquals("dart.edit.codeAction.apply", result[1].right.command.command)
+    }
+
+    fun testExecuteCommandRequest() {
+        val params = ExecuteCommandParams("dart.edit.sortMembers", listOf(JsonObject().apply {
+            addProperty("path", "/path/to/main.dart")
+        }))
+
+        val future = bridgeServer.executeCommand(params)
+
+        val jsonObject = requireNotNull(capturedRequests.find { it.get("method")?.asString == "lsp.handle" }) {
+            "An lsp.handle request should be sent to DAS"
+        }
+        assertEquals("123", jsonObject.get("id").asString)
+
+        val lspMessage = jsonObject.getAsJsonObject("params").getAsJsonObject("lspMessage")
+        assertEquals("123", lspMessage.get("id").asString)
+        assertEquals("workspace/executeCommand", lspMessage.get("method").asString)
+        assertEquals("dart.edit.sortMembers", lspMessage.getAsJsonObject("params").get("command").asString)
+
+        val responseJson = """
+            {
+              "id": "123",
+              "result": {
+                "lspResponse": {
+                  "jsonrpc": "2.0",
+                  "id": "123",
+                  "result": null
+                }
+              }
+            }
+        """.trimIndent()
+
+        capturedListener.onResponse(responseJson)
+        assertNull(future.get(5, TimeUnit.SECONDS))
+    }
+
     fun testDiagnosticServerRequest() {
         val future = bridgeServer.diagnosticServer()
 
@@ -254,6 +388,32 @@ class DartBridgeLspServerTest : DartCodeInsightFixtureTestCase() {
         assertNotNull(mockClient.publishedDiagnostics)
         assertEquals("file://test.dart", mockClient.publishedDiagnostics?.uri)
         assertTrue(mockClient.publishedDiagnostics?.diagnostics?.isEmpty() == true)
+    }
+
+    fun testForwardNotificationSendsALegacyNotification() {
+        bridgeServer.forwardNotification("workspace/didChangeConfiguration", DidChangeConfigurationParams(JsonObject()))
+
+        // The server never answers a notification, so wrapping it in an `lsp.handle` request would
+        // leave that request unanswered; it travels as a legacy `lsp.notification` instead.
+        assertEquals("a notification must not be sent as a request", 0, capturedRequests.size)
+        assertEquals(1, capturedNotifications.size)
+
+        val notification = capturedNotifications[0]
+        assertEquals("lsp.notification", notification.get("event").asString)
+        assertFalse("a legacy notification must not carry an id", notification.has("id"))
+
+        val params = requireNotNull(notification.getAsJsonObject("params")) { "notification should carry params: $notification" }
+        val lspNotification = requireNotNull(params.getAsJsonObject("lspNotification")) {
+            "params should carry the LSP notification: $params"
+        }
+        assertEquals("2.0", lspNotification.get("jsonrpc").asString)
+        assertEquals("workspace/didChangeConfiguration", lspNotification.get("method").asString)
+        assertFalse("an LSP notification must not carry an id", lspNotification.has("id"))
+
+        val settings = requireNotNull(lspNotification.getAsJsonObject("params")?.getAsJsonObject("settings")) {
+            "the notification should carry empty settings: $lspNotification"
+        }
+        assertEquals("the server re-reads the settings itself", JsonObject(), settings)
     }
 
     fun testGetFileUriFormatting() {
@@ -437,6 +597,39 @@ class DartBridgeLspServerTest : DartCodeInsightFixtureTestCase() {
         assertTrue(result.isEmpty())
     }
 
+    fun testBuildLspCapabilitiesWithCodeActions() {
+        val enabledCaps = DartAnalysisServerService.buildLspCapabilities("3.14.0", true, false, true)
+        val textDocEnabled = enabledCaps.getAsJsonObject("textDocument")
+        assertNotNull(textDocEnabled)
+        val codeAction = textDocEnabled.getAsJsonObject("codeAction")
+        assertNotNull("codeAction capabilities must be present when enabled", codeAction)
+        val literalSupport = codeAction.getAsJsonObject("codeActionLiteralSupport")
+        assertNotNull("codeActionLiteralSupport must be present", literalSupport)
+        val valueSet = literalSupport.getAsJsonObject("codeActionKind").getAsJsonArray("valueSet")
+        val kinds = valueSet.map { it.asString }
+        assertTrue(kinds.contains("quickfix"))
+        assertTrue(kinds.contains("refactor"))
+        assertTrue(kinds.contains("source.organizeImports"))
+        assertEquals(true, codeAction.get("dataSupport").asBoolean)
+
+        val disabledCaps = DartAnalysisServerService.buildLspCapabilities("3.14.0", true, false, false)
+        val textDocDisabled = disabledCaps.getAsJsonObject("textDocument")
+        assertFalse("codeAction capabilities should not be present when disabled", textDocDisabled.has("codeAction"))
+    }
+
+    fun testInitializeCapabilitiesIncludesCodeActionOptions() {
+        val initResult = bridgeServer.initialize(org.eclipse.lsp4j.InitializeParams()).get(5, TimeUnit.SECONDS)
+        val caProvider = initResult.capabilities.codeActionProvider
+        assertNotNull("codeActionProvider capability must be set", caProvider)
+        assertTrue("codeActionProvider should be Either.forLeft(true)", caProvider.isLeft && caProvider.left == true)
+    }
+
+    fun testLspMethodExperimentalFeatures() {
+        val experimentalNames = LspMethod.getExperimentalFeatures().mapNotNull { it.presentableName }
+        assertTrue("Experimental features list should contain 'code actions'", experimentalNames.contains("code actions"))
+        assertTrue("Experimental features list should contain 'errors and warnings'", experimentalNames.contains("errors and warnings"))
+    }
+
     fun testPublishDiagnosticsNotification() {
         val testFile = myFixture.addFileToProject(
             "lib/test.dart",
@@ -484,6 +677,56 @@ class DartBridgeLspServerTest : DartCodeInsightFixtureTestCase() {
         val errorsHash = DartAnalysisServerService.getInstance(project).getFilePathsWithErrorsHash()
         assertNotSame(0, errorsHash)
     }
+
+    fun testPublishClosingLabelsNotification() {
+        val testFile = myFixture.addFileToProject(
+            "lib/widget.dart",
+            """
+                void main() {
+                  runApp(
+                    MyWidget(
+                      child: Text('Hello'),
+                    ),
+                  );
+                }
+                """.trimIndent()
+        )
+        val fileUri = "file://${testFile.virtualFile.path}"
+
+        val notificationJson = """
+                {
+                  "params": {
+                    "lspNotification": {
+                      "jsonrpc": "2.0",
+                      "method": "dart/textDocument/publishClosingLabels",
+                      "params": {
+                        "uri": "$fileUri",
+                        "labels": [
+                          {
+                            "label": "MyWidget",
+                            "range": {
+                              "start": {"line": 2, "character": 4},
+                              "end": {"line": 4, "character": 5}
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+            """.trimIndent()
+
+        // 1. Simulate the reverse notification arriving from DAS over the bridge
+        capturedListener.onResponse(notificationJson)
+
+        // 2. Verify DartAnalysisServerService / DartServerData processed and stored the label
+        val closingLabels = DartLspClosingLabelsService.getInstance(project).getClosingLabels(testFile.virtualFile)
+        assertEquals(1, closingLabels.size)
+        assertEquals("MyWidget", closingLabels[0].label)
+        assertEquals(2, closingLabels[0].range?.start?.line)
+        assertEquals(4, closingLabels[0].range?.end?.line)
+    }
+
 
     fun testTypeDefinitionRequest() {
         val params = TypeDefinitionParams().apply {
@@ -877,6 +1120,7 @@ class DartBridgeLspServerTest : DartCodeInsightFixtureTestCase() {
               }
             }
         """.trimIndent()
+
         capturedListener.onResponse(responseJson)
         val result = future.get(5, TimeUnit.SECONDS)
         assertNotNull(result)
@@ -887,6 +1131,8 @@ class DartBridgeLspServerTest : DartCodeInsightFixtureTestCase() {
         assertEquals(0, result[0].range.end.line)
         assertEquals(10, result[0].range.end.character)
     }
+
+
 
     fun testIsDartSdkVersionSufficientForLspReferences() {
         assertTrue(DartAnalysisServerService.isDartSdkVersionSufficientForLspReferences("3.14.0-65.0.dev"))
@@ -899,8 +1145,156 @@ class DartBridgeLspServerTest : DartCodeInsightFixtureTestCase() {
         assertFalse(DartAnalysisServerService.isDartSdkVersionSufficientForLspReferences("2.14.0"))
     }
 
+    fun testInitializeCapabilitiesIncludesFileOperations() {
+        val initResult = bridgeServer.initialize(InitializeParams()).get(5, TimeUnit.SECONDS)
+        assertNotNull("InitializeResult should not be null", initResult)
+        val fileOperations = initResult.capabilities.workspace?.fileOperations
+        assertNotNull("Workspace fileOperations should be advertised", fileOperations)
+        assertNotNull("willRename file operations should be advertised", fileOperations?.willRename)
+    }
+
+    fun testWillRenameFilesRequest() {
+        val oldUri = "file:///project/lib/old_folder"
+        val newUri = "file:///project/lib/new_folder"
+        val params = RenameFilesParams(listOf(FileRename(oldUri, newUri)))
+
+        val future = bridgeServer.willRenameFiles(params)
+
+        val jsonObject = requireNotNull(capturedRequests.find { it.get("method")?.asString == "lsp.handle" }) {
+            "An lsp.handle request should be sent to DAS"
+        }
+        assertEquals("123", jsonObject.get("id")?.asString)
+
+        val lspMessage = jsonObject.getAsJsonObject("params").getAsJsonObject("lspMessage")
+        assertEquals("123", lspMessage.get("id").asString)
+        assertEquals("workspace/willRenameFiles", lspMessage.get("method").asString)
+
+        val lspParams = lspMessage.getAsJsonObject("params")
+        val filesArray = lspParams.getAsJsonArray("files")
+        assertEquals(1, filesArray.size())
+        val fileRenameObj = filesArray.get(0).asJsonObject
+        assertEquals(oldUri, fileRenameObj.get("oldUri").asString)
+        assertEquals(newUri, fileRenameObj.get("newUri").asString)
+
+        val responseJson = """
+            {
+              "id": "123",
+              "result": {
+                "lspResponse": {
+                  "jsonrpc": "2.0",
+                  "id": "123",
+                  "result": {
+                    "documentChanges": [
+                      {
+                        "textDocument": {
+                          "uri": "file:///project/lib/main.dart",
+                          "version": null
+                        },
+                        "edits": [
+                          {
+                            "range": {
+                              "start": {"line": 0, "character": 7},
+                              "end": {"line": 0, "character": 22}
+                            },
+                            "newText": "'package:project/new_folder/a.dart'"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+        """.trimIndent()
+
+        capturedListener.onResponse(responseJson)
+
+        val editResult = checkNotNull(future.get(5, TimeUnit.SECONDS)) { "WorkspaceEdit result should not be null" }
+        val docChanges = checkNotNull(editResult.documentChanges) { "documentChanges should not be null" }
+        assertEquals(1, docChanges.size)
+        assertTrue("documentChanges item should be Left (TextDocumentEdit)", docChanges[0].isLeft)
+        val textDocEdit = docChanges[0].left
+        assertEquals("file:///project/lib/main.dart", textDocEdit.textDocument.uri)
+        assertEquals(1, textDocEdit.edits.size)
+        assertEquals("'package:project/new_folder/a.dart'", textDocEdit.edits[0].newText)
+    }
+
+    fun testBuildLspCapabilitiesIncludesFileOperations() {
+        val caps = DartAnalysisServerService.buildLspCapabilities("3.8.0")
+        val workspace = caps.getAsJsonObject("workspace")
+        assertNotNull("workspace capability should not be null", workspace)
+        val fileOperations = workspace.getAsJsonObject("fileOperations")
+        assertNotNull("fileOperations capability should not be null", fileOperations)
+        assertTrue("willRename should be true", fileOperations.get("willRename").asBoolean)
+    }
+
+    fun testLauncherCreationSucceedsWithoutDuplicateRpcMethodException() {
+        val launcher = Launcher.createLauncher(
+            bridgeServer,
+            LanguageClient::class.java,
+            ByteArrayInputStream(ByteArray(0)),
+            ByteArrayOutputStream()
+        )
+        assertNotNull("Launcher should be created successfully without Duplicate RPC method exceptions", launcher)
+    }
+
+    fun testWorkspaceApplyEditRequestForwardedAndResponseSentBack() {
+        val serverRequestJson = """
+            {
+              "id": "das_req_1",
+              "method": "lsp.handle",
+              "params": {
+                "lspMessage": {
+                  "jsonrpc": "2.0",
+                  "id": 99,
+                  "method": "workspace/applyEdit",
+                  "params": {
+                    "label": "Sort Members",
+                    "edit": {
+                      "changes": {
+                        "file:///test.dart": [
+                          {
+                            "range": {
+                              "start": { "line": 0, "character": 0 },
+                              "end": { "line": 1, "character": 0 }
+                            },
+                            "newText": "// sorted\n"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+        """.trimIndent()
+
+        capturedListener.onResponse(serverRequestJson)
+
+        // Verify client received the applyEdit call
+        assertNotNull("Client should have received applyEdit params", mockClient.lastApplyWorkspaceEditParams)
+        assertEquals("Sort Members", mockClient.lastApplyWorkspaceEditParams?.label)
+
+        // Verify response was sent back to DAS
+        val responseJsonObject = capturedResponses.find { it.get("id")?.asString == "das_req_1" }
+        assertNotNull("A response should be sent back to DAS with id das_req_1", responseJsonObject)
+
+        val lspResponse = responseJsonObject!!.getAsJsonObject("result")?.getAsJsonObject("lspResponse")
+        assertNotNull("response should contain lspResponse", lspResponse)
+        assertEquals(99, lspResponse!!.get("id").asInt)
+        assertNotNull("lspMessage should contain result", lspResponse.getAsJsonObject("result"))
+        assertEquals(true, lspResponse.getAsJsonObject("result").get("applied").asBoolean)
+    }
+
     private class MockLanguageClient : LanguageClient {
         var publishedDiagnostics: PublishDiagnosticsParams? = null
+        var lastApplyWorkspaceEditParams: ApplyWorkspaceEditParams? = null
+        var applyEditResult: ApplyWorkspaceEditResponse = ApplyWorkspaceEditResponse(true)
+
+        override fun applyEdit(params: ApplyWorkspaceEditParams?): CompletableFuture<ApplyWorkspaceEditResponse> {
+            lastApplyWorkspaceEditParams = params
+            return CompletableFuture.completedFuture(applyEditResult)
+        }
 
         override fun publishDiagnostics(diagnostics: PublishDiagnosticsParams?) {
             publishedDiagnostics = diagnostics

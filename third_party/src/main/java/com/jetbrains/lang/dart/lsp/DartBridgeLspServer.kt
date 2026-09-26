@@ -17,12 +17,16 @@ import com.jetbrains.lang.dart.analyzer.DartAnalysisServerService
 import com.jetbrains.lang.dart.logging.PluginLogger
 import org.dartlang.analysis.server.protocol.AnalysisError
 import org.dartlang.analysis.server.protocol.DiagnosticMessage
+import org.eclipse.lsp4j.ApplyWorkspaceEditParams
 import org.eclipse.lsp4j.CallHierarchyIncomingCall
 import org.eclipse.lsp4j.CallHierarchyIncomingCallsParams
 import org.eclipse.lsp4j.CallHierarchyItem
 import org.eclipse.lsp4j.CallHierarchyOutgoingCall
 import org.eclipse.lsp4j.CallHierarchyOutgoingCallsParams
 import org.eclipse.lsp4j.CallHierarchyPrepareParams
+import org.eclipse.lsp4j.CodeAction
+import org.eclipse.lsp4j.CodeActionParams
+import org.eclipse.lsp4j.Command
 import org.eclipse.lsp4j.DefinitionParams
 import org.eclipse.lsp4j.Diagnostic
 import org.eclipse.lsp4j.DiagnosticSeverity
@@ -34,6 +38,12 @@ import org.eclipse.lsp4j.DidOpenTextDocumentParams
 import org.eclipse.lsp4j.DidSaveTextDocumentParams
 import org.eclipse.lsp4j.DocumentHighlight
 import org.eclipse.lsp4j.DocumentHighlightParams
+import org.eclipse.lsp4j.ExecuteCommandOptions
+import org.eclipse.lsp4j.ExecuteCommandParams
+import org.eclipse.lsp4j.FileOperationFilter
+import org.eclipse.lsp4j.FileOperationOptions
+import org.eclipse.lsp4j.FileOperationPattern
+import org.eclipse.lsp4j.FileOperationsServerCapabilities
 import org.eclipse.lsp4j.Hover
 import org.eclipse.lsp4j.HoverParams
 import org.eclipse.lsp4j.InitializeParams
@@ -44,7 +54,15 @@ import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.LocationLink
 import org.eclipse.lsp4j.PublishDiagnosticsParams
 import org.eclipse.lsp4j.ReferenceParams
+import org.eclipse.lsp4j.RenameFilesParams
 import org.eclipse.lsp4j.ServerCapabilities
+import org.eclipse.lsp4j.TypeDefinitionParams
+import org.eclipse.lsp4j.TypeHierarchyItem
+import org.eclipse.lsp4j.TypeHierarchyPrepareParams
+import org.eclipse.lsp4j.TypeHierarchySubtypesParams
+import org.eclipse.lsp4j.TypeHierarchySupertypesParams
+import org.eclipse.lsp4j.WorkspaceEdit
+import org.eclipse.lsp4j.WorkspaceServerCapabilities
 import org.eclipse.lsp4j.jsonrpc.ResponseErrorException
 import org.eclipse.lsp4j.jsonrpc.json.MessageJsonHandler
 import org.eclipse.lsp4j.jsonrpc.messages.Either
@@ -53,11 +71,6 @@ import org.eclipse.lsp4j.services.LanguageClient
 import org.eclipse.lsp4j.services.LanguageClientAware
 import org.eclipse.lsp4j.services.TextDocumentService
 import org.eclipse.lsp4j.services.WorkspaceService
-import org.eclipse.lsp4j.TypeDefinitionParams
-import org.eclipse.lsp4j.TypeHierarchyItem
-import org.eclipse.lsp4j.TypeHierarchyPrepareParams
-import org.eclipse.lsp4j.TypeHierarchySubtypesParams
-import org.eclipse.lsp4j.TypeHierarchySupertypesParams
 import java.lang.reflect.Type
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
@@ -94,6 +107,7 @@ class DartBridgeLspServer(private val project: Project) : DartLanguageServer, Te
         private val logger = PluginLogger.createLogger(DartBridgeLspServer::class.java)
         private const val LSP_MESSAGE_KEY = "lspMessage"
         private const val LSP_NOTIFICATION_KEY = "lspNotification"
+        private const val LSP_NOTIFICATION_EVENT = "lsp.notification"
         private const val LSP_RESPONSE_KEY = "lspResponse"
         private const val JSONRPC_VERSION = "2.0"
         
@@ -104,13 +118,13 @@ class DartBridgeLspServer(private val project: Project) : DartLanguageServer, Te
 
     private var client: LanguageClient? = null
     private val pendingRequests = ConcurrentHashMap<String, PendingRequest<*>>()
-    private var responseListener: ResponseListener? = null
+    private var dasMessageListener: ResponseListener? = null
 
     private val das: DartAnalysisServerService
         get() = DartAnalysisServerService.getInstance(project)
 
     init {
-        setupDasResponseListener()
+        setupDasMessageListener()
     }
 
     override fun connect(client: LanguageClient) {
@@ -119,36 +133,38 @@ class DartBridgeLspServer(private val project: Project) : DartLanguageServer, Te
     }
 
     /**
-     * Sets up a listener on the legacy Dart Analysis Server (DAS) to intercept responses 
-     * and notifications sent back to requests originating from the client.
+     * Sets up a listener on the legacy Dart Analysis Server (DAS) to intercept messages
+     * (responses, notifications, and reverse requests) containing LSP payloads.
      */
-    private fun setupDasResponseListener() {
-        val listener = ResponseListener { response ->
-            // Intercept only those responses that contain LSP payload keys.
-            if (!response.contains(LSP_MESSAGE_KEY) && !response.contains(LSP_RESPONSE_KEY) && !response.contains(LSP_NOTIFICATION_KEY)) {
+    private fun setupDasMessageListener() {
+        val listener = ResponseListener { rawMessage ->
+            // Intercept only those messages that contain LSP payload keys.
+            if (!rawMessage.contains(LSP_MESSAGE_KEY) && !rawMessage.contains(LSP_RESPONSE_KEY) && !rawMessage.contains(LSP_NOTIFICATION_KEY)) {
                 return@ResponseListener
             }
 
             try {
-                val jsonObject = JsonParser.parseString(response).asJsonObject
-                handleDasResponse(jsonObject)
+                val jsonObject = JsonParser.parseString(rawMessage).asJsonObject
+                handleDasMessage(jsonObject)
             } catch (e: Exception) {
-                logger.error("Error handling DAS response: $response", e)
+                logger.error("Error handling DAS message", e)
             }
         }
-        this.responseListener = listener
+        this.dasMessageListener = listener
         das.addResponseListener(listener)
     }
 
     /**
-     * Processes raw JSON responses from the Dart Analysis Server.
+     * Processes raw JSON messages from the Dart Analysis Server.
      * Depending on the payload, it either:
-     * 1. Forwards server notifications (e.g. publishDiagnostics) directly to the LSP client.
-     * 2. Unwraps successful LSP responses (e.g. hover/completion results) or exceptional 
-     *    LSP errors to resolve the matching pending request future.
+     * 1. Forwards server-initiated messages (e.g. publishDiagnostics, applyEdit) directly to the LSP client.
+     * 2. Resolves matching pending request futures for client-initiated requests (e.g. hover, codeAction).
      */
-    private fun handleDasResponse(jsonObject: JsonObject) {
-        // Check if it's a notification from DAS.
+    private fun handleDasMessage(jsonObject: JsonObject) {
+        val idElement = jsonObject.get("id")
+        val topLevelId = if (idElement != null && idElement.isJsonPrimitive) idElement.asString else null
+
+        // Check if it's a server-initiated notification or request from DAS.
         if (jsonObject.has("params")) {
             val params = jsonObject.get("params").asJsonObject
             val msgObj = when {
@@ -159,75 +175,109 @@ class DartBridgeLspServer(private val project: Project) : DartLanguageServer, Te
             if (msgObj != null) {
                 val method = msgObj.getAsJsonPrimitive("method")?.asString
                 if (method != null) {
-                    // Forward notification to client.
-                    forwardNotificationToClient(method, msgObj)
+                    // Forward server message to client.
+                    forwardServerMessageToClient(topLevelId, method, msgObj)
                 }
                 return
             }
         }
 
-        // Check if it's a response to a request.
-        val idElement = jsonObject.get("id")
-        val topLevelId = if (idElement != null && idElement.isJsonPrimitive) idElement.asString else null
+        // Check if it's a response to a client-initiated request.
         if (topLevelId != null) {
-            val pending = pendingRequests.remove(topLevelId)
-            if (pending != null) {
-                if (jsonObject.has("result")) {
-                    val result = jsonObject.get("result").asJsonObject
-                    if (result.has(LSP_RESPONSE_KEY)) {
-                        val lspResponseElement = result.get(LSP_RESPONSE_KEY)
-                        if (lspResponseElement != null && lspResponseElement.isJsonObject) {
-                            val lspResponse = lspResponseElement.asJsonObject
-                            if (lspResponse.has("error")) {
-                                val error = lspResponse.getAsJsonObject("error")
-                                pending.completeExceptionally(error)
-                            } else if (lspResponse.has("result")) {
-                                val lspResult = lspResponse.get("result")
-                                if (lspResult != null && !lspResult.isJsonNull) {
-                                    pending.complete(lspResult)
-                                } else {
-                                    pending.completeWithNull()
-                                }
-                            } else {
-                                pending.completeWithNull()
-                            }
-                        } else {
-                            pending.completeWithNull()
-                        }
-                    } else {
-                        pending.completeWithNull()
+            handlePendingRequestResponse(topLevelId, jsonObject)
+        }
+    }
+
+    private fun handlePendingRequestResponse(topLevelId: String, jsonObject: JsonObject) {
+        val pending = pendingRequests.remove(topLevelId) ?: return
+        val topLevelError = jsonObject.get("error")?.takeIf { it.isJsonObject }?.asJsonObject
+        if (topLevelError != null) {
+            pending.completeExceptionally(topLevelError)
+            return
+        }
+
+        val lspResponse = jsonObject.get("result")?.takeIf { it.isJsonObject }?.asJsonObject
+            ?.get(LSP_RESPONSE_KEY)?.takeIf { it.isJsonObject }?.asJsonObject
+
+        val lspError = lspResponse?.get("error")?.takeIf { it.isJsonObject }?.asJsonObject
+        if (lspError != null) {
+            pending.completeExceptionally(lspError)
+        } else {
+            pending.complete(lspResponse?.get("result"))
+        }
+    }
+
+    private fun forwardServerMessageToClient(dasRequestId: String?, method: String, msgObj: JsonObject) {
+        val client = this.client ?: return
+        try {
+            // Parse and forward notifications/requests to the LSP client proxy using lsp4j.
+            when (method) {
+                "textDocument/publishDiagnostics" -> handlePublishDiagnostics(client, msgObj)
+                "dart/textDocument/publishClosingLabels" -> handlePublishClosingLabels(msgObj)
+                "workspace/applyEdit" -> handleApplyEdit(client, dasRequestId, msgObj)
+                else -> logger.debug("Ignored notification/request from DAS: $method")
+            }
+        } catch (e: Exception) {
+            logger.error("Failed to forward server message for method: $method", e)
+        }
+    }
+
+    private fun handlePublishDiagnostics(client: LanguageClient, msgObj: JsonObject) {
+        val paramsObj = msgObj.get("params")
+        val params = GSON.fromJson(paramsObj, PublishDiagnosticsParams::class.java)
+        client.publishDiagnostics(params)
+        val errors = params.diagnostics?.map {
+            DartLspDiagnosticConverter.convertDiagnosticToAnalysisError(project, das, params.uri, it)
+        } ?: emptyList()
+        das.onLspDiagnosticsUpdated(params.uri, errors)
+    }
+
+    private fun handlePublishClosingLabels(msgObj: JsonObject) {
+        val paramsObj = msgObj.get("params")
+        val params = GSON.fromJson(paramsObj, DartPublishClosingLabelsParams::class.java)
+        if (params?.uri != null) {
+            DartLspClosingLabelsService.getInstance(project).updateClosingLabels(params.uri, params.labels)
+        }
+    }
+
+    private fun handleApplyEdit(client: LanguageClient, dasRequestId: String?, msgObj: JsonObject) {
+        val paramsObj = msgObj.get("params")
+        val params = GSON.fromJson(paramsObj, ApplyWorkspaceEditParams::class.java)
+        val lspId = msgObj.get("id")
+        client.applyEdit(params).whenComplete { response, error ->
+            if (dasRequestId != null) {
+                val lspResponse = JsonObject().apply {
+                    addProperty("jsonrpc", JSONRPC_VERSION)
+                    if (lspId != null) {
+                        add("id", lspId)
                     }
-                } else if (jsonObject.has("error")) {
-                    val error = jsonObject.get("error").asJsonObject
-                    pending.completeExceptionally(error)
+                    if (error != null) {
+                        val errorObj = JsonObject().apply {
+                            addProperty("code", -32603)
+                            addProperty("message", error.message ?: "Internal error")
+                        }
+                        add("error", errorObj)
+                    } else {
+                        add("result", GSON.toJsonTree(response))
+                    }
+                }
+                val legacyResponse = JsonObject().apply {
+                    addProperty("id", dasRequestId)
+                    add("result", JsonObject().apply {
+                        add(LSP_RESPONSE_KEY, lspResponse)
+                    })
+                }
+                try {
+                    das.sendResponse(legacyResponse)
+                } catch (e: Exception) {
+                    logger.error("Failed to send applyEdit response to DAS", e)
                 }
             }
         }
     }
 
-    private fun forwardNotificationToClient(method: String, msgObj: JsonObject) {
-        val client = this.client ?: return
-        try {
-            // Parse and forward notifications to the LSP client proxy using lsp4j.
-            // Currently, only 'textDocument/publishDiagnostics' is supported and forwarded.
-            if (method == "textDocument/publishDiagnostics") {
-                val paramsObj = msgObj.get("params")
-                val params = GSON.fromJson(paramsObj, PublishDiagnosticsParams::class.java)
-                client.publishDiagnostics(params)
-                val errors = params.diagnostics?.map {
-                    DartLspDiagnosticConverter.convertDiagnosticToAnalysisError(project, das, params.uri, it)
-                } ?: emptyList()
-                das.onLspDiagnosticsUpdated(params.uri, errors)
-            } else {
-                logger.info("Ignored notification from DAS: $method")
-            }
-        } catch (e: Exception) {
-            logger.error("Failed to forward notification: $msgObj", e)
-        }
-    }
-
     fun stop() {
-        responseListener?.let { das.removeResponseListener(it) }
+        dasMessageListener?.let { das.removeResponseListener(it) }
         pendingRequests.forEach { (_, pending) ->
             pending.future.cancel(true)
         }
@@ -247,6 +297,14 @@ class DartBridgeLspServer(private val project: Project) : DartLanguageServer, Te
             setTypeHierarchyProvider(true)
             setCallHierarchyProvider(true)
             setReferencesProvider(true)
+            val fileOperationsCaps = FileOperationsServerCapabilities().apply {
+                willRename = FileOperationOptions(listOf(FileOperationFilter(FileOperationPattern("**/*"))))
+            }
+            workspace = WorkspaceServerCapabilities().apply {
+                fileOperations = fileOperationsCaps
+            }
+            setCodeActionProvider(true)
+            setExecuteCommandProvider(ExecuteCommandOptions())
             // Add other capabilities as we support them.
         }
         return CompletableFuture.completedFuture(InitializeResult(capabilities))
@@ -319,6 +377,15 @@ class DartBridgeLspServer(private val project: Project) : DartLanguageServer, Te
         return forwardRequest("dart/diagnosticServer", null, DiagnosticServerResult::class.java)
     }
 
+    // Note: We advertise codeActionLiteralSupport in server.setClientCapabilities (see DartAnalysisServerService.buildLspCapabilities)
+    // so DAS is guaranteed to return List<CodeAction> for textDocument/codeAction.
+    override fun codeAction(params: CodeActionParams): CompletableFuture<List<Either<Command, CodeAction>>> {
+        val responseType = object : TypeToken<List<CodeAction>>() {}.type
+        return forwardRequest<List<CodeAction>>("textDocument/codeAction", params, responseType).thenApply { actions ->
+            actions?.map { Either.forRight<Command, CodeAction>(it) } ?: emptyList()
+        }
+    }
+
     // Implement other TextDocumentService methods as needed, returning unsupported or forwarding.
     
     override fun didOpen(params: DidOpenTextDocumentParams) {
@@ -338,6 +405,14 @@ class DartBridgeLspServer(private val project: Project) : DartLanguageServer, Te
     }
 
     // --- WorkspaceService Implementation ---
+
+    override fun willRenameFiles(params: RenameFilesParams): CompletableFuture<WorkspaceEdit> {
+        return forwardRequest("workspace/willRenameFiles", params, WorkspaceEdit::class.java)
+    }
+
+    override fun executeCommand(params: ExecuteCommandParams): CompletableFuture<Any> {
+        return forwardRequest("workspace/executeCommand", params, Any::class.java)
+    }
 
     override fun didChangeConfiguration(params: DidChangeConfigurationParams) {
         // Ignored. Configuration is managed by the legacy plugin settings.
@@ -401,13 +476,19 @@ class DartBridgeLspServer(private val project: Project) : DartLanguageServer, Te
     private fun <T> forwardRequest(method: String, params: Any?, responseType: Type): CompletableFuture<T> {
         val future = CompletableFuture<T>()
         
-        val ready = runReadAction { das.serverReadyForRequest() }
+        val ready = if (das.isServerProcessActive) {
+            true
+        } else {
+            runCatching { runReadAction { das.serverReadyForRequest() } }.getOrDefault(false)
+        }
         if (!ready) {
             future.completeExceptionally(ResponseErrorException(ResponseError(-32001, "Dart Analysis Server is not ready", null)))
             return future
         }
 
-        das.updateFilesContent()
+        if (com.intellij.openapi.application.ApplicationManager.getApplication().isReadAccessAllowed) {
+            das.updateFilesContent()
+        }
 
         val legacyId = das.generateUniqueId()
         if (legacyId == null) {
@@ -438,7 +519,7 @@ class DartBridgeLspServer(private val project: Project) : DartLanguageServer, Te
         try {
             das.sendRequest(legacyId, legacyRequest)
         } catch (e: Exception) {
-            logger.error("Failed to send request to DAS: $legacyRequest", e)
+            logger.error("Failed to send request to DAS for method: $method", e)
             pendingRequests.remove(legacyId)
             future.completeExceptionally(e)
         }
@@ -449,47 +530,55 @@ class DartBridgeLspServer(private val project: Project) : DartLanguageServer, Te
     /**
      * Forwards an LSP notification to the legacy DAS.
      *
-     * It wraps the LSP notification in a legacy DAS `lsp.handle` request.
-     * Since LSP notifications do not expect a response, we do not register a future to track it.
-     * DAS will still return a dummy legacy response acknowledging the `lsp.handle` request,
-     * which we will receive and safely ignore (as no pending request will match its ID).
+     * It wraps the LSP notification in a legacy `lsp.notification` notification - the same envelope
+     * the server uses for the notifications it sends to us, see [forwardNotificationToClient].
+     * An `lsp.handle` request would not do: that is a legacy request, and the server answers every
+     * request, while an LSP notification has no response to answer with.
+     *
+     * Returns whether the notification was handed to the analysis server. A notification is not
+     * answered, so that is as much as the caller can be told - and it has to be told, because a
+     * caller that tracks what the server knows would otherwise wait forever for an effect that
+     * never comes.
      */
-    private fun forwardNotification(method: String, params: Any) {
-        val legacyId = das.generateUniqueId()
+    internal fun forwardNotification(method: String, params: Any): Boolean {
         val lspNotification = JsonObject().apply {
             addProperty("jsonrpc", JSONRPC_VERSION)
             addProperty("method", method)
             add("params", GSON.toJsonTree(params))
         }
 
-        val legacyRequest = JsonObject().apply {
-            addProperty("id", legacyId)
-            addProperty("method", "lsp.handle")
+        val legacyNotification = JsonObject().apply {
+            addProperty("event", LSP_NOTIFICATION_EVENT)
             add("params", JsonObject().apply {
-                add("lspMessage", lspNotification)
+                add(LSP_NOTIFICATION_KEY, lspNotification)
             })
         }
 
-        try {
-            das.sendRequest(legacyId, legacyRequest)
+        return try {
+            // A server that is going away is not a plugin bug, so this must not be logged as an
+            // error: that raises an IDE fatal-error notification in internal and EAP builds.
+            das.sendNotification(legacyNotification).also {
+                if (!it) logger.warn("No analysis server to send the notification to: $legacyNotification")
+            }
         } catch (e: Exception) {
-            logger.error("Failed to send notification to DAS: $legacyRequest", e)
+            logger.warn("Failed to send notification to DAS for method: $method", e)
+            false
         }
     }
 
     // Helper class to store pending request info.
     private inner class PendingRequest<T>(val future: CompletableFuture<T>, val responseType: Type) {
-        fun complete(resultPayload: JsonElement) {
+        fun complete(resultPayload: JsonElement?) {
+            if (resultPayload == null || resultPayload.isJsonNull) {
+                future.complete(null)
+                return
+            }
             try {
-                val result = GSON.fromJson<T>(resultPayload, responseType)
+                val result: T = GSON.fromJson(resultPayload, responseType)
                 future.complete(result)
             } catch (e: Exception) {
                 future.completeExceptionally(e)
             }
-        }
-
-        fun completeWithNull() {
-            future.complete(null)
         }
 
         fun completeExceptionally(error: JsonObject) {
