@@ -89,9 +89,10 @@ class VmServicePerfettoCpuSamplesTest : VmServiceIntegrationTestBase() {
     try {
       awaitDebugStreamSubscription(service)
       resumeIsolate(service, isolateId)
-      assertTrue(
+      waitForLatch(
         "The workload should pause at exit within ${WORKLOAD_TIMEOUT_SECONDS}s",
-        pauseExit.await(WORKLOAD_TIMEOUT_SECONDS.toLong(), TimeUnit.SECONDS)
+        pauseExit,
+        WORKLOAD_TIMEOUT_SECONDS
       )
       val failure = connectionFailure.get()
       if (failure != null) fail(failure)
@@ -111,9 +112,10 @@ class VmServicePerfettoCpuSamplesTest : VmServiceIntegrationTestBase() {
         latch.countDown()
       }
     })
-    assertTrue(
+    waitForLatch(
       "streamListen(Debug) should respond within ${RESPONSE_TIMEOUT_SECONDS}s",
-      latch.await(RESPONSE_TIMEOUT_SECONDS.toLong(), TimeUnit.SECONDS)
+      latch,
+      RESPONSE_TIMEOUT_SECONDS
     )
     val error = failure.get()
     if (error != null) fail(error)
@@ -135,9 +137,10 @@ class VmServicePerfettoCpuSamplesTest : VmServiceIntegrationTestBase() {
         latch.countDown()
       }
     })
-    assertTrue(
+    waitForLatch(
       "resume should respond within ${RESPONSE_TIMEOUT_SECONDS}s",
-      latch.await(RESPONSE_TIMEOUT_SECONDS.toLong(), TimeUnit.SECONDS)
+      latch,
+      RESPONSE_TIMEOUT_SECONDS
     )
     val error = failure.get()
     if (error != null) fail(error)
@@ -178,9 +181,10 @@ class VmServicePerfettoCpuSamplesTest : VmServiceIntegrationTestBase() {
         latch.countDown()
       }
     })
-    assertTrue(
+    waitForLatch(
       "getIsolate should respond within ${RESPONSE_TIMEOUT_SECONDS}s",
-      latch.await(RESPONSE_TIMEOUT_SECONDS.toLong(), TimeUnit.SECONDS)
+      latch,
+      RESPONSE_TIMEOUT_SECONDS
     )
     return requireNotNull(result.get()) { failure.get() ?: "getIsolate returned no result" }
   }
@@ -196,9 +200,10 @@ class VmServicePerfettoCpuSamplesTest : VmServiceIntegrationTestBase() {
 
       override fun onError(error: RPCError?) = latch.countDown()
     })
-    assertTrue(
+    waitForLatch(
       "getVM should respond within ${RESPONSE_TIMEOUT_SECONDS}s",
-      latch.await(RESPONSE_TIMEOUT_SECONDS.toLong(), TimeUnit.SECONDS)
+      latch,
+      RESPONSE_TIMEOUT_SECONDS
     )
     return requireNotNull(result.get()) { "getVM returned an error" }
   }
@@ -223,9 +228,10 @@ class VmServicePerfettoCpuSamplesTest : VmServiceIntegrationTestBase() {
         latch.countDown()
       }
     })
-    assertTrue(
+    waitForLatch(
       "getPerfettoCpuSamples should respond within ${RESPONSE_TIMEOUT_SECONDS}s",
-      latch.await(RESPONSE_TIMEOUT_SECONDS.toLong(), TimeUnit.SECONDS)
+      latch,
+      RESPONSE_TIMEOUT_SECONDS
     )
     return requireNotNull(result.get()) {
       failure.get() ?: "getPerfettoCpuSamples returned no result"

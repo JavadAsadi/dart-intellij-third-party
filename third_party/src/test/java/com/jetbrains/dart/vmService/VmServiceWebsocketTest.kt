@@ -15,7 +15,6 @@ import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.serv
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.VM
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.Version
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 class VmServiceWebsocketTest : VmServiceIntegrationTestBase() {
@@ -45,9 +44,10 @@ class VmServiceWebsocketTest : VmServiceIntegrationTestBase() {
       override fun received(response: Success?) = streamSuccess.countDown()
       override fun onError(error: RPCError?) {}
     })
-    assertTrue(
+    waitForLatch(
       "streamListen(Isolate) should be acknowledged within ${RESPONSE_TIMEOUT_SECONDS}s",
-      streamSuccess.await(RESPONSE_TIMEOUT_SECONDS.toLong(), TimeUnit.SECONDS)
+      streamSuccess,
+      RESPONSE_TIMEOUT_SECONDS
     )
   }
 
@@ -61,9 +61,10 @@ class VmServiceWebsocketTest : VmServiceIntegrationTestBase() {
       }
       override fun onError(error: RPCError?) = latch.countDown()
     })
-    assertTrue(
+    waitForLatch(
       "getVersion should respond within ${RESPONSE_TIMEOUT_SECONDS}s",
-      latch.await(RESPONSE_TIMEOUT_SECONDS.toLong(), TimeUnit.SECONDS)
+      latch,
+      RESPONSE_TIMEOUT_SECONDS
     )
     return requireNotNull(result.get()) { "getVersion returned an error" }
   }
@@ -78,9 +79,10 @@ class VmServiceWebsocketTest : VmServiceIntegrationTestBase() {
       }
       override fun onError(error: RPCError?) = latch.countDown()
     })
-    assertTrue(
+    waitForLatch(
       "getVM should respond within ${RESPONSE_TIMEOUT_SECONDS}s",
-      latch.await(RESPONSE_TIMEOUT_SECONDS.toLong(), TimeUnit.SECONDS)
+      latch,
+      RESPONSE_TIMEOUT_SECONDS
     )
     return requireNotNull(result.get()) { "getVM returned an error" }
   }

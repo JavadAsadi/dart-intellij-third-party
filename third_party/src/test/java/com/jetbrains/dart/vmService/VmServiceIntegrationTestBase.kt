@@ -57,6 +57,10 @@ abstract class VmServiceIntegrationTestBase : BasePlatformTestCase() {
     return service
   }
 
+  protected fun waitForLatch(message: String, latch: CountDownLatch, timeoutSeconds: Int) {
+    PlatformTestUtil.waitWithEventsDispatching(message, { latch.count == 0L }, timeoutSeconds)
+  }
+
   /**
    * Launches a Dart script with the VM service enabled and parses the `ws://` URI from stdout.
    * See DartCommandLineRunningState.java.
@@ -101,9 +105,9 @@ abstract class VmServiceIntegrationTestBase : BasePlatformTestCase() {
     })
     handler.startNotify()
 
-    PlatformTestUtil.waitWithEventsDispatching(
+    waitForLatch(
       "Did not receive a VM service URI within ${CONNECT_TIMEOUT_SECONDS}s",
-      { uriLatch.count == 0L },
+      uriLatch,
       CONNECT_TIMEOUT_SECONDS
     )
     return requireNotNull(wsUri.get()) { "Failed to parse VM service URI" }
