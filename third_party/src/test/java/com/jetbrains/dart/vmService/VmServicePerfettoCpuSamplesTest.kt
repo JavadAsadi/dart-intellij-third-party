@@ -23,7 +23,6 @@ import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.serv
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.VM
 import java.util.Base64
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 class VmServicePerfettoCpuSamplesTest : VmServiceIntegrationTestBase() {
@@ -47,7 +46,6 @@ class VmServicePerfettoCpuSamplesTest : VmServiceIntegrationTestBase() {
     val isolates = awaitVM(service).isolates
     assertFalse("The test VM should expose its workload isolate", isolates.isEmpty)
     val isolateId = requireNotNull(isolates[0].id) { "The workload isolate should have an id" }
-    awaitIsolatePausedAtStart(service, isolateId)
     runWorkloadToPauseExit(service, isolateId)
     val samples = awaitPerfettoCpuSamples(service, isolateId)
 
@@ -66,21 +64,25 @@ class VmServicePerfettoCpuSamplesTest : VmServiceIntegrationTestBase() {
   }
 
   private fun runWorkloadToPauseExit(service: VmService, isolateId: String) {
+    val pauseStart = CountDownLatch(1)
     val pauseExit = CountDownLatch(1)
     val connectionFailure = AtomicReference<String>()
     val listener = object : VmServiceListener {
       override fun connectionOpened() = Unit
 
       override fun received(streamId: String, event: Event) {
-        if (streamId == VmService.DEBUG_STREAM_ID &&
-            event.kind == EventKind.PauseExit &&
-            event.isolate?.id == isolateId) {
-          pauseExit.countDown()
+        if (streamId == VmService.DEBUG_STREAM_ID && event.isolate?.id == isolateId) {
+          when (event.kind) {
+            EventKind.PauseStart -> pauseStart.countDown()
+            EventKind.PauseExit -> pauseExit.countDown()
+            else -> Unit
+          }
         }
       }
 
       override fun connectionClosed() {
-        connectionFailure.set("VM service connection closed before the workload paused at exit")
+        connectionFailure.set("VM service connection closed before the workload completed")
+        pauseStart.countDown()
         pauseExit.countDown()
       }
     }
@@ -88,6 +90,9 @@ class VmServicePerfettoCpuSamplesTest : VmServiceIntegrationTestBase() {
     service.addVmServiceListener(listener)
     try {
       awaitDebugStreamSubscription(service)
+      awaitIsolatePausedAtStart(service, isolateId, pauseStart)
+      val startFailure = connectionFailure.get()
+      if (startFailure != null) fail(startFailure)
       resumeIsolate(service, isolateId)
       waitForLatch(
         "The workload should pause at exit within ${WORKLOAD_TIMEOUT_SECONDS}s",
@@ -146,18 +151,15 @@ class VmServicePerfettoCpuSamplesTest : VmServiceIntegrationTestBase() {
     if (error != null) fail(error)
   }
 
-  private fun awaitIsolatePausedAtStart(service: VmService, isolateId: String) {
-    val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(WORKLOAD_TIMEOUT_SECONDS.toLong())
-    var lastIsolate: Isolate
-    do {
-      lastIsolate = awaitIsolate(service, isolateId)
-      if (lastIsolate.runnable && lastIsolate.pauseEvent.kind == EventKind.PauseStart) return
-      Thread.sleep(10)
-    } while (System.nanoTime() < deadline)
+  private fun awaitIsolatePausedAtStart(service: VmService, isolateId: String, pauseStart: CountDownLatch) {
+    val isolate = awaitIsolate(service, isolateId)
+    if (isolate.runnable && isolate.pauseEvent.kind == EventKind.PauseStart) return
 
-    fail(
+    waitForLatch(
       "The workload isolate should become runnable and pause at start within ${WORKLOAD_TIMEOUT_SECONDS}s; " +
-      "last state: runnable=${lastIsolate.runnable}, pauseEvent=${lastIsolate.pauseEvent.kind}"
+      "initial state: runnable=${isolate.runnable}, pauseEvent=${isolate.pauseEvent.kind}",
+      pauseStart,
+      WORKLOAD_TIMEOUT_SECONDS
     )
   }
 
