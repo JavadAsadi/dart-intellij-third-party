@@ -8,12 +8,14 @@ package com.jetbrains.dart.vmService
 
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.VmService
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.VmServiceListener
+import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.consumer.GetIsolateConsumer
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.consumer.GetPerfettoCpuSamplesConsumer
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.consumer.ResumeConsumer
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.consumer.SuccessConsumer
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.consumer.VMConsumer
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.Event
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.EventKind
+import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.Isolate
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.PerfettoCpuSamples
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.RPCError
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.Sentinel
@@ -45,6 +47,7 @@ class VmServicePerfettoCpuSamplesTest : VmServiceIntegrationTestBase() {
     val isolates = awaitVM(service).isolates
     assertFalse("The test VM should expose its workload isolate", isolates.isEmpty)
     val isolateId = requireNotNull(isolates[0].id) { "The workload isolate should have an id" }
+    awaitIsolatePausedAtStart(service, isolateId)
     runWorkloadToPauseExit(service, isolateId)
     val samples = awaitPerfettoCpuSamples(service, isolateId)
 
@@ -138,6 +141,48 @@ class VmServicePerfettoCpuSamplesTest : VmServiceIntegrationTestBase() {
     )
     val error = failure.get()
     if (error != null) fail(error)
+  }
+
+  private fun awaitIsolatePausedAtStart(service: VmService, isolateId: String) {
+    val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(WORKLOAD_TIMEOUT_SECONDS.toLong())
+    var lastIsolate: Isolate
+    do {
+      lastIsolate = awaitIsolate(service, isolateId)
+      if (lastIsolate.runnable && lastIsolate.pauseEvent.kind == EventKind.PauseStart) return
+      Thread.sleep(10)
+    } while (System.nanoTime() < deadline)
+
+    fail(
+      "The workload isolate should become runnable and pause at start within ${WORKLOAD_TIMEOUT_SECONDS}s; " +
+      "last state: runnable=${lastIsolate.runnable}, pauseEvent=${lastIsolate.pauseEvent.kind}"
+    )
+  }
+
+  private fun awaitIsolate(service: VmService, isolateId: String): Isolate {
+    val latch = CountDownLatch(1)
+    val result = AtomicReference<Isolate>()
+    val failure = AtomicReference<String>()
+    service.getIsolate(isolateId, object : GetIsolateConsumer {
+      override fun received(response: Isolate) {
+        result.set(response)
+        latch.countDown()
+      }
+
+      override fun received(response: Sentinel) {
+        failure.set("getIsolate returned sentinel ${response.kind}")
+        latch.countDown()
+      }
+
+      override fun onError(error: RPCError) {
+        failure.set("getIsolate failed: ${error.message}")
+        latch.countDown()
+      }
+    })
+    assertTrue(
+      "getIsolate should respond within ${RESPONSE_TIMEOUT_SECONDS}s",
+      latch.await(RESPONSE_TIMEOUT_SECONDS.toLong(), TimeUnit.SECONDS)
+    )
+    return requireNotNull(result.get()) { failure.get() ?: "getIsolate returned no result" }
   }
 
   private fun awaitVM(service: VmService): VM {
