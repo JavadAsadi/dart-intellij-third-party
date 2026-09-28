@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create a deterministic VM Service driver synchronization report."""
+"""Create a deterministic VM Service protocol synchronization report."""
 
 from __future__ import annotations
 
@@ -13,9 +13,9 @@ from vm_service_audit import AuditError, build_report, load_baseline, load_sourc
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(
         description=(
-            "Compare the plugin VM Service Java drivers with a Dart SDK service.md and "
-            "write a deterministic Markdown/JSON updater handoff bundle. Protocol drift "
-            "exits successfully; configuration and generation failures do not."
+            "Compare the plugin VM Service version with a Dart SDK service.md and write "
+            "a deterministic Markdown/JSON protocol-evidence bundle. Available protocol "
+            "updates exit successfully; invalid or incomplete inputs do not."
         )
     )
     result.add_argument(
@@ -57,14 +57,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument(
         "--allow-network",
         action="store_true",
-        help=(
-            "Allow GitHub retrieval and online fallback for pinned Dart dependencies"
-        ),
-    )
-    result.add_argument(
-        "--dart",
-        default="dart",
-        help="Dart executable used by the pinned generator",
+        help="Allow GitHub retrieval for SDK source evidence",
     )
     result.add_argument(
         "--output",
@@ -111,7 +104,13 @@ def main(arguments: list[str] | None = None) -> int:
         display = destination.relative_to(repo_root)
     except ValueError:
         display = destination
-    delta = report["drift"]["baseline_to_target"]
+    candidates = report["change_candidates"]
+    affected_rpcs = sum(
+        len(candidate["affected_rpcs"]) for candidate in candidates
+    )
+    affected_types = sum(
+        len(candidate["affected_types"]) for candidate in candidates
+    )
     print(f"report: {display}")
     print(
         "versions: "
@@ -119,10 +118,10 @@ def main(arguments: list[str] | None = None) -> int:
         f"sdk={report['source']['target']['protocol_version']}"
     )
     print(
-        "generated drift: "
-        f"added={len(delta['added'])} "
-        f"changed={len(delta['changed'])} "
-        f"removed={len(delta['removed'])}"
+        "protocol evidence: "
+        f"candidates={len(candidates)} "
+        f"rpc_changes={affected_rpcs} "
+        f"type_changes={affected_types}"
     )
     print(f"readiness: {report['readiness']}")
     return 0

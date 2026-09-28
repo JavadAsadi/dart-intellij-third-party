@@ -1,6 +1,6 @@
 ---
 name: sync-vm-service-drivers
-description: Advance the Dart IntelliJ plugin's generated VM Service Java drivers by exactly one protocol version using a user-reviewed, test-first workflow. Use to explain the next protocol revision, add red tests, decide whether SDK-backed integration coverage is worthwhile, implement the generated driver changes, and prepare manual verification steps.
+description: Advance the Dart IntelliJ plugin's VM Service Java drivers by exactly one protocol version through an LLM-authored, user-reviewed, test-first workflow. Use to explain the next revision, add red tests, decide whether SDK-backed integration coverage is worthwhile, implement the driver changes, and prepare manual verification steps.
 ---
 
 # Sync VM Service Drivers
@@ -12,6 +12,11 @@ Advance exactly one protocol version per invocation. The version declared by
 This is an interactive red-green workflow. The review pauses below are mandatory: do not replace a
 pause with an assumption that the user approves the tests or the next phase.
 
+Do not use, restore, or recreate the Dart VM Service driver generator. The audit script gathers
+protocol evidence only; it does not produce Java or prescribe a file-level patch. The LLM must
+author every test and production change from the protocol specification and existing repository
+conventions.
+
 ## Establish the next-version change
 
 Prefer the sibling `../sdk` checkout and use immutable SDK commits as evidence. Inspect its branch,
@@ -20,7 +25,7 @@ diverged, or non-`main` checkout. Ask before fast-forwarding a clean, stale `mai
 checkout exists, offer a filtered clone or, with network permission, use the audit script's GitHub
 mode.
 
-Run the deterministic audit from the plugin repository root and validate its bundle:
+Run the protocol audit from the plugin repository root and validate its bundle:
 
 ```bash
 python3 .agents/skills/sync-vm-service-drivers/scripts/audit.py
@@ -28,8 +33,8 @@ python3 .agents/skills/sync-vm-service-drivers/scripts/validate_report.py \
   third_party/build/reports/vm-service-drivers/<source-id>
 ```
 
-Use `report.json` and the candidate artifacts as evidence. Read
-[the incremental updater contract](references/updater-contract.md) before selecting or applying a
+Use `report.json`, the candidate `service.md` snapshots, and their specification patches as
+evidence. Read [the incremental updater contract](references/updater-contract.md) before selecting a
 candidate span. Use the first later protocol transition to identify the next version, then select
 the commits after the commit that first entered the current plugin version through the final
 consecutive candidate that still declares the target version. Stop before the following protocol
@@ -37,20 +42,21 @@ transition. This includes same-version changes both before and after the target 
 upgrade uses that version's stabilized state. If the report cannot establish that ordered history,
 stop and explain what source evidence is missing.
 
-Before editing any file, tell the user:
+For the selected span, read the complete affected RPC and type definitions—not only the revision
+note or diff hunk. Inspect the corresponding driver elements, consumers, request methods, response
+dispatch, tests, and Git history in this repository. Infer the required Java files and API shape
+from those sources. Before editing any file, tell the user:
 
 - the current and next protocol versions;
 - what the next revision adds, changes, removes, or deprecates;
 - any intervening same-version changes included in the upgrade;
-- the affected RPCs, types, fields, generated files, and relevant plugin usage sites; and
+- the affected RPCs, types, fields, likely Java files, and relevant plugin usage sites; and
 - compatibility concerns such as nullability, numeric range, unions, dispatch, or removed values.
 
-Generated Java is evidence, not an instruction to overwrite the driver tree. Check the protocol's
-semantics and existing Java conventions. In particular, review timestamp, duration, ID, offset, and
-count ranges instead of accepting a generated `int`/`Integer` mechanically; PR #654 required
-`long`/`Long` to prevent overflow. Preserve the historical copyright year in existing files. Files
-first added by the upgrade must use the current calendar year emitted by the pinned generator; do
-not bulk-update older generated headers.
+The existing drivers are the style and compatibility baseline. Review timestamp, duration, ID,
+offset, and count ranges instead of translating protocol numbers mechanically; PR #654 required
+`long`/`Long` to prevent overflow. Preserve the historical copyright year in existing files and use
+the current calendar year for files first added by the upgrade. Do not bulk-rewrite the driver tree.
 
 ## Write the unit test first
 
@@ -71,9 +77,9 @@ production-aligned `vmServiceDrivers` packages and keep SDK-backed live-process 
 them.
 
 Use boundary-revealing values where relevant, such as values greater than `Integer.MAX_VALUE` for
-microseconds represented as 64-bit values. Do not write tests that merely match generated comments
-or formatting. A missing generated API may make the red state a compilation failure; that is
-acceptable when unavoidable, but explain it precisely.
+microseconds represented as 64-bit values. Do not write tests that merely match comments or
+formatting. A missing API may make the red state a compilation failure; that is acceptable when
+unavoidable, but explain it precisely.
 
 ### Mandatory pause: unit test review
 
@@ -115,20 +121,23 @@ that decision and proceed only when they authorize implementation.
 
 ## Implement and reach green
 
-After all accepted tests are in place, regenerate the audit and validate the fresh bundle before
-production edits; test sources are hashed audit inputs, so the pre-test bundle is intentionally
-stale. Confirm that the selected candidate span did not change. Apply only that next-version span.
-Preserve plugin-owned files, deliberate deviations from generated output, and unrelated local
-changes; stop for a user decision when the next-version change overlaps them. Add or update the
-necessary driver elements, consumers, RPC overloads, serialization, response routing, and
-documentation, then update `versionMajor`/`versionMinor` to the next protocol version.
+After all accepted tests are in place, rerun the protocol audit and validate the fresh bundle before
+production edits; test and usage sources are hashed audit inputs, so the pre-test bundle is
+intentionally stale. Confirm that the selected candidate span did not change.
+
+Implement only that next-version span. Write the necessary driver elements, consumers, RPC
+overloads, parameter serialization, response routing, and documentation directly. Match neighboring
+driver patterns while preserving deliberate deviations and unrelated local changes.
+When the specification is ambiguous or conflicts with an existing compatibility choice, explain the
+evidence and stop for a user decision instead of inventing generator behavior. Finally update
+`versionMajor`/`versionMinor` to the next protocol version.
 
 Run the focused unit tests, any approved integration test, Java compilation, and the existing VM
 Service regression test suites. Never change a test merely to make it green. If a test remains red,
 tell the user the failing command and symptom, explain whether the cause is production logic, an
-incorrect test assumption, generated-code limitations, or the environment, and fix in-scope
-production problems. This phase is complete only when the applicable tests are green; otherwise
-report the unresolved reason plainly.
+incorrect test assumption, protocol ambiguity, or the environment, and fix in-scope production
+problems. This phase is complete only when the applicable tests are green; otherwise report the
+unresolved reason plainly.
 
 ## Prepare manual verification
 
@@ -147,5 +156,6 @@ model for RPC additions. Do not claim that manual verification passed unless it 
 
 - Keep the upgrade to one protocol version and do not bundle later revisions.
 - Resume from the existing phase after a pause; inspect the worktree and preserve user edits.
+- Do not use a Dart or other code generator for driver implementation.
 - Do not update the SDK checkout, commit, push, or open a pull request without explicit permission.
-- Do not overwrite generated customizations or unrelated worktree changes.
+- Do not overwrite deliberate driver customizations or unrelated worktree changes.

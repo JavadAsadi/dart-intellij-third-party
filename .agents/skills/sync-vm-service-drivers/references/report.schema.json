@@ -10,22 +10,19 @@
     "readiness",
     "source",
     "plugin",
-    "drift",
     "semantic_changes",
     "change_candidates",
-    "required_work",
     "preconditions",
     "artifacts"
   ],
   "properties": {
-    "schema_version": { "const": "1.0.0" },
+    "schema_version": { "const": "2.0.0" },
     "generated_by": { "const": "sync-vm-service-drivers/audit.py" },
     "readiness": {
       "enum": ["up_to_date", "update_required", "ready_with_warning", "incomplete_history", "blocked"]
     },
     "source": { "$ref": "#/$defs/source" },
     "plugin": { "$ref": "#/$defs/plugin" },
-    "drift": { "$ref": "#/$defs/drift" },
     "semantic_changes": {
       "type": "array",
       "items": { "$ref": "#/$defs/revisionNote" }
@@ -33,10 +30,6 @@
     "change_candidates": {
       "type": "array",
       "items": { "$ref": "#/$defs/candidate" }
-    },
-    "required_work": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/workItem" }
     },
     "preconditions": { "$ref": "#/$defs/preconditions" },
     "artifacts": {
@@ -110,52 +103,14 @@
         "baseline": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["protocol_version", "sdk_commit", "service_md_sha256", "generator_commit"],
+          "required": ["protocol_version", "sdk_commit", "service_md_sha256"],
           "properties": {
-            "protocol_version": { "type": "string" },
+            "protocol_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+$" },
             "sdk_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
-            "service_md_sha256": { "$ref": "#/$defs/sha256" },
-            "generator_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+            "service_md_sha256": { "$ref": "#/$defs/sha256" }
           }
         },
         "files": { "type": "array", "items": { "$ref": "#/$defs/fileHash" } }
-      }
-    },
-    "pathList": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/path" },
-      "uniqueItems": true
-    },
-    "delta": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["added", "changed", "removed"],
-      "properties": {
-        "added": { "$ref": "#/$defs/pathList" },
-        "changed": { "$ref": "#/$defs/pathList" },
-        "removed": { "$ref": "#/$defs/pathList" }
-      }
-    },
-    "customization": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["path", "baseline_sha256", "plugin_sha256"],
-      "properties": {
-        "path": { "$ref": "#/$defs/path" },
-        "baseline_sha256": { "$ref": "#/$defs/sha256" },
-        "plugin_sha256": { "$ref": "#/$defs/sha256" }
-      }
-    },
-    "drift": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["baseline_to_target", "plugin_to_target", "plugin_owned_files", "customized_generated_files", "overlapping_changes"],
-      "properties": {
-        "baseline_to_target": { "$ref": "#/$defs/delta" },
-        "plugin_to_target": { "$ref": "#/$defs/delta" },
-        "plugin_owned_files": { "$ref": "#/$defs/pathList" },
-        "customized_generated_files": { "type": "array", "items": { "$ref": "#/$defs/customization" } },
-        "overlapping_changes": { "$ref": "#/$defs/pathList" }
       }
     },
     "revisionNote": {
@@ -189,38 +144,27 @@
     "candidate": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["order", "sdk_commit", "title", "protocol_before", "protocol_after", "revision_notes", "affected_rpcs", "affected_types", "generated_delta", "plugin_usage_sites", "existing_test_sites", "artifacts"],
+      "required": ["order", "sdk_commit", "title", "protocol_before", "protocol_after", "revision_notes", "affected_rpcs", "affected_types", "plugin_usage_sites", "existing_test_sites", "artifacts"],
       "properties": {
         "order": { "type": "integer", "minimum": 1 },
         "sdk_commit": { "$ref": "#/$defs/gitSha" },
         "title": { "type": "string" },
-        "protocol_before": { "type": "string" },
-        "protocol_after": { "type": "string" },
+        "protocol_before": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+$" },
+        "protocol_after": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+$" },
         "revision_notes": { "type": "array", "items": { "$ref": "#/$defs/revisionNote" } },
         "affected_rpcs": { "type": "array", "items": { "$ref": "#/$defs/affectedSymbol" } },
         "affected_types": { "type": "array", "items": { "$ref": "#/$defs/affectedSymbol" } },
-        "generated_delta": { "$ref": "#/$defs/delta" },
         "plugin_usage_sites": { "type": "array", "items": { "$ref": "#/$defs/site" } },
         "existing_test_sites": { "type": "array", "items": { "$ref": "#/$defs/site" } },
         "artifacts": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["spec_snapshot", "service_diff", "generated_diff"],
+          "required": ["spec_snapshot", "service_diff"],
           "properties": {
             "spec_snapshot": { "$ref": "#/$defs/path" },
-            "service_diff": { "$ref": "#/$defs/path" },
-            "generated_diff": { "$ref": "#/$defs/path" }
+            "service_diff": { "$ref": "#/$defs/path" }
           }
         }
-      }
-    },
-    "workItem": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["kind", "path"],
-      "properties": {
-        "kind": { "enum": ["add_generated_file", "update_generated_file", "remove_generated_file", "resolve_customization_overlap"] },
-        "path": { "$ref": "#/$defs/path" }
       }
     },
     "preconditions": {
