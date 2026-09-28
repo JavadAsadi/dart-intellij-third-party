@@ -6,51 +6,48 @@ description: Advance the Dart IntelliJ plugin's VM Service Java drivers by exact
 # Sync VM Service Drivers
 
 Advance exactly one protocol version per invocation. The version declared by
-`vmServiceDrivers/service/VmService.java` is the current version; the next revision in the Dart SDK's
-`runtime/vm/service/service.md` is the target. Do not jump directly to the latest revision.
+`vmServiceDrivers/service/VmService.java` is the current version; the first later revision in the
+Dart SDK's `runtime/vm/service/service.md` history is the target. Do not jump directly to the latest
+revision.
 
 This is an interactive red-green workflow. The review pauses below are mandatory: do not replace a
 pause with an assumption that the user approves the tests or the next phase.
 
-Do not use, restore, or recreate the Dart VM Service driver generator. The audit script gathers
-protocol evidence only; it does not produce Java or prescribe a file-level patch. The LLM must
-author every test and production change from the protocol specification and existing repository
-conventions.
+This skill is instruction-only. Do not use, restore, create, or depend on a code generator, audit
+script, report bundle, schema, or manifest. The LLM must inspect the repository and SDK history
+directly and author every test and production change.
 
 ## Establish the next-version change
 
 Prefer the sibling `../sdk` checkout and use immutable SDK commits as evidence. Inspect its branch,
-cleanliness, and relationship to remote `main` with read-only Git commands. Never update a dirty,
-diverged, or non-`main` checkout. Ask before fast-forwarding a clean, stale `main`. If no usable SDK
-checkout exists, offer a filtered clone or, with network permission, use the audit script's GitHub
-mode.
+cleanliness, current commit, and relationship to remote `main` with read-only Git operations. Never
+update a dirty, diverged, or non-`main` checkout. Ask before fast-forwarding a clean, stale `main`.
+If no usable checkout exists, offer a filtered SDK clone or inspect the same files and commit history
+through the official Dart SDK repository with network permission.
 
-Run the protocol audit from the plugin repository root and validate its bundle:
+Read [the protocol-history selection contract](references/updater-contract.md), then inspect
+`service.md` and its Git history directly. Determine the current plugin version, locate its SDK
+history anchor, identify the first later protocol version, and include the target version's
+consecutive same-version stabilization commits. Stop before the following protocol transition. If
+the history is incomplete, non-monotonic, or does not contain the current version, stop and explain
+what evidence is missing.
 
-```bash
-python3 .agents/skills/sync-vm-service-drivers/scripts/audit.py
-python3 .agents/skills/sync-vm-service-drivers/scripts/validate_report.py \
-  third_party/build/reports/vm-service-drivers/<source-id>
-```
+Keep an evidence record in the conversation containing:
 
-Use `report.json`, the candidate `service.md` snapshots, and their specification patches as
-evidence. Read [the incremental updater contract](references/updater-contract.md) before selecting a
-candidate span. Use the first later protocol transition to identify the next version, then select
-the commits after the commit that first entered the current plugin version through the final
-consecutive candidate that still declares the target version. Stop before the following protocol
-transition. This includes same-version changes both before and after the target transition so the
-upgrade uses that version's stabilized state. If the report cannot establish that ordered history,
-stop and explain what source evidence is missing.
+- the plugin repository commit and initial worktree status;
+- the SDK source, branch, commit, cleanliness, and freshness evidence;
+- the current and target protocol versions;
+- the ordered SDK commit IDs selected for this one-version span; and
+- the affected RPCs, types, fields, and revision notes from those commits.
 
-For the selected span, read the complete affected RPC and type definitions—not only the revision
-note or diff hunk. Inspect the corresponding driver elements, consumers, request methods, response
-dispatch, tests, and Git history in this repository. Infer the required Java files and API shape
-from those sources. Before editing any file, tell the user:
+For the selected span, read the complete affected RPC and type definitions—not only revision notes
+or diff hunks. Inspect corresponding driver elements, consumers, request methods, response dispatch,
+tests, and relevant plugin Git history. Infer the required Java files and API shape from those
+sources. Before editing any file, tell the user:
 
-- the current and next protocol versions;
 - what the next revision adds, changes, removes, or deprecates;
-- any intervening same-version changes included in the upgrade;
-- the affected RPCs, types, fields, likely Java files, and relevant plugin usage sites; and
+- which same-version changes are included and why;
+- the likely Java files and relevant plugin usage sites; and
 - compatibility concerns such as nullability, numeric range, unions, dispatch, or removed values.
 
 The existing drivers are the style and compatibility baseline. Review timestamp, duration, ID,
@@ -69,12 +66,11 @@ smallest observable behavior that proves the change, for example:
 - response-type dispatch to the correct consumer; or
 - compatibility behavior for a changed or deprecated protocol value.
 
-In this project, the dependency on a configured Dart SDK is the boundary between unit and
-integration tests. Any test that does not need the Dart SDK belongs in this unit-test phase, even if
-it exercises WebSocket code, request/response routing, or asynchronous callbacks. Include all such
-SDK-free coverage before the unit-test review pause. Keep SDK-free driver tests in
-production-aligned `vmServiceDrivers` packages and keep SDK-backed live-process tests separate from
-them.
+In this project, needing a configured Dart SDK is the boundary between unit and integration tests.
+Any test that does not need the Dart SDK belongs in this unit-test phase, even if it exercises
+WebSocket code, request/response routing, or asynchronous callbacks. Include all such SDK-free
+coverage before the unit-test review pause. Keep SDK-free driver tests in production-aligned
+`vmServiceDrivers` packages and SDK-backed live-process tests separate from them.
 
 Use boundary-revealing values where relevant, such as values greater than `Integer.MAX_VALUE` for
 microseconds represented as 64-bit values. Do not write tests that merely match comments or
@@ -119,25 +115,25 @@ expected red result, and give the user time to inspect and run it. Do not implem
 until the user returns and approves continuing. If the user declines integration coverage, record
 that decision and proceed only when they authorize implementation.
 
-## Implement and reach green
+## Revalidate and implement
 
-After all accepted tests are in place, rerun the protocol audit and validate the fresh bundle before
-production edits; test and usage sources are hashed audit inputs, so the pre-test bundle is
-intentionally stale. Confirm that the selected candidate span did not change.
+Before production edits, repeat the read-only checks recorded at the start. Confirm that the SDK
+target commit and ordered selected commit IDs are unchanged, `VmService.java` still declares the
+same current version, and the plugin worktree contains only the expected test changes plus preserved
+pre-existing changes. If any protocol evidence changed, explain it and stop instead of silently
+changing scope.
 
-Implement only that next-version span. Write the necessary driver elements, consumers, RPC
+Implement only the selected next-version span. Write the necessary driver elements, consumers, RPC
 overloads, parameter serialization, response routing, and documentation directly. Match neighboring
-driver patterns while preserving deliberate deviations and unrelated local changes.
-When the specification is ambiguous or conflicts with an existing compatibility choice, explain the
-evidence and stop for a user decision instead of inventing generator behavior. Finally update
-`versionMajor`/`versionMinor` to the next protocol version.
+driver patterns while preserving deliberate deviations and unrelated local changes. When the
+specification is ambiguous or conflicts with an existing compatibility choice, explain the evidence
+and stop for a user decision. Finally update `versionMajor`/`versionMinor` to the target version.
 
-Run the focused unit tests, any approved integration test, Java compilation, and the existing VM
-Service regression test suites. Never change a test merely to make it green. If a test remains red,
-tell the user the failing command and symptom, explain whether the cause is production logic, an
-incorrect test assumption, protocol ambiguity, or the environment, and fix in-scope production
-problems. This phase is complete only when the applicable tests are green; otherwise report the
-unresolved reason plainly.
+Run the focused unit tests, any approved integration test, Java compilation, and existing VM Service
+regression suites. Never change a test merely to make it green. If a test remains red, tell the user
+the failing command and symptom, explain whether the cause is production logic, an incorrect test
+assumption, protocol ambiguity, or the environment, and fix in-scope production problems. This
+phase is complete only when the applicable tests are green; otherwise report the unresolved reason.
 
 ## Prepare manual verification
 
@@ -156,6 +152,8 @@ model for RPC additions. Do not claim that manual verification passed unless it 
 
 - Keep the upgrade to one protocol version and do not bundle later revisions.
 - Resume from the existing phase after a pause; inspect the worktree and preserve user edits.
-- Do not use a Dart or other code generator for driver implementation.
+- Do not create or invoke VM Service audit or generation helper scripts, report bundles, schemas,
+  or manifests.
+- Read-only shell and repository tools are allowed for direct inspection; they must not write code.
 - Do not update the SDK checkout, commit, push, or open a pull request without explicit permission.
 - Do not overwrite deliberate driver customizations or unrelated worktree changes.
