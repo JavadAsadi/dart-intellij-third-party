@@ -1,51 +1,73 @@
-# Incremental VM Service Driver Updater Contract
+# VM Service Protocol-History Selection Contract
 
-The audit bundle is immutable protocol evidence for choosing and implementing one revision. Validate
-`report.json` against its bundled schema, verify `manifest.json`, confirm the SDK target identity,
-and compare plugin precondition hashes before relying on it. Regenerate stale evidence.
+Select exactly one protocol revision using direct, read-only inspection. Do not create an audit
+script, generated report, schema, manifest, or code-generation step.
 
-The audit does not generate Java, predict a production patch, or determine that an existing driver
-matches the specification. The LLM owns that analysis and every source edit.
+## Establish immutable inputs
 
-## Select one candidate span
+Record the plugin commit, initial worktree status, and version declared by `VmService.java`. For the
+SDK source, record the checkout or official repository used, its exact target commit, branch,
+cleanliness, and the evidence used to judge whether it is current. Do not substitute a moving branch
+name for a commit ID in later reasoning.
 
-The recorded baseline is a historical specification anchor and may be older than the plugin.
-Determine the plugin's current version from `VmService.java`. In `change_candidates`, find the
-candidate that first transitions into that version; for the baseline version, use the baseline
-itself. The first following candidate whose `protocol_after` differs identifies the sole target
-version. Select every candidate after the current-version anchor through the final consecutive
-candidate whose `protocol_after` still equals that target version. Stop before the first candidate
-that transitions beyond the target version. If the target is the latest recorded version, include
-all remaining candidates that continue to declare it.
+The authoritative specification path is `runtime/vm/service/service.md`. Read its protocol header,
+Public RPCs, Public Types, and Revision History directly at the relevant commits.
 
-Include same-version candidates on both sides of the transition into the target. For example, a
-documentation or type change made while the specification still says 4.4 belongs to the 4.4-to-4.5
-update if it follows the 4.4 anchor, and a compatibility fix that still declares 4.5 also belongs to
-that update. This produces the stabilized final state of 4.5 without including the transition to
-4.6.
+## Find the current-version anchor
 
-If the current version has no matching entry, the versions are non-monotonic, or there is no later
-transition, do not guess. Report that the plugin is up to date or that history is insufficient.
+Inspect the SDK commits that changed `service.md` in chronological order. Locate the transition where
+the specification header first became the version currently declared by the plugin. A Git pickaxe
+search for the exact protocol-header text can locate candidate transitions, but inspect the commit
+and surrounding file history rather than trusting the search result alone.
 
-## Derive the implementation from protocol evidence
+Also inspect the plugin commit or pull request that introduced its current version. If it identifies
+the final SDK specification commit incorporated by that upgrade, use that immutable commit as the
+current-version anchor. Otherwise use the first SDK transition into the current version as a
+conservative anchor, include later same-version commits as candidates, and compare their behavior
+with the existing Java so already implemented changes are not duplicated.
 
-For every candidate in the selected span, read its complete `service.md` snapshot and
-`service.patch`. Use `affected_rpcs` and `affected_types` as navigation aids, not as a substitute for
-the definitions. Inspect all corresponding Java elements, consumers, request serialization,
-response dispatch, unit tests, SDK-backed tests, and relevant Git history in the plugin.
+If the current version cannot be anchored in complete SDK history, stop and tell the user what is
+missing. Do not infer an anchor from dates alone.
 
-Before editing, build an explicit mapping from each protocol change to the Java symbols and files it
-requires. Derive names, inheritance, nullability, union handling, numeric widths, defaults, overloads,
-and callback behavior from the specification and established neighboring implementations. A new
-protocol type does not automatically imply a one-file change, and the audit intentionally supplies
-no generated file delta.
+## Select the next stabilized revision
 
-Write the Java directly. Preserve intentional compatibility behavior and historical copyright years
-in existing files; new files use the current calendar year. If the protocol is ambiguous or an
-existing implementation conflicts with the likely translation, stop for a human decision rather
-than recreating or guessing what a generator would have emitted.
+Starting after the anchor, inspect each commit that changed `service.md`:
 
-The candidate span remains fixed through the test-first pauses. Because test and usage sources are
-manifest inputs, regenerate and validate a fresh bundle after adding the accepted tests and before
-production implementation. Confirm that the new report selects the same span; if the SDK or driver
-inputs changed enough to alter it, tell the user and stop rather than silently changing scope.
+1. Include same-version commits that follow the anchor; they may contain compatibility or
+   documentation changes not represented by a version bump.
+2. The first commit whose protocol header differs from the current version establishes the sole
+   target version.
+3. Include that transition and every consecutive later `service.md` commit that still declares the
+   target version.
+4. Stop before the first commit that declares a later protocol version.
+
+If there is no later transition, report that no next protocol version is available. If versions are
+non-monotonic or relevant history is shallow or missing, stop instead of guessing.
+
+Record the selected commits in order with their full IDs, titles, protocol before/after values, and
+revision notes. This ordered list is the scope boundary for the rest of the workflow.
+
+## Derive semantic and Java changes
+
+For each selected commit, inspect both the `service.md` diff and the full post-commit definitions.
+List added, changed, removed, and deprecated RPCs, types, fields, enum values, and semantics. The
+final target snapshot is authoritative when intermediate commits revise one another.
+
+Search the plugin directly for every affected symbol and inspect neighboring implementations, tests,
+and relevant Git history. Build an explicit mapping from protocol changes to Java elements,
+consumers, request serialization, response dispatch, and tests. Derive inheritance, nullability,
+numeric widths, defaults, overloads, union handling, and callback behavior from the specification
+and established repository conventions.
+
+Do not mechanically translate a diff or assume a protocol type maps to one Java file. Preserve
+intentional compatibility behavior and historical copyright years in existing files; new files use
+the current calendar year. If the protocol is ambiguous or conflicts with existing behavior, stop
+for a human decision.
+
+## Revalidate after review pauses
+
+Before production implementation, repeat the initial read-only checks and reconstruct the selected
+commit list from the same immutable SDK target. Confirm that the target commit, ordered span, current
+plugin version, and relevant pre-existing worktree changes are unchanged. Expected newly added tests
+may differ; unrelated changes must be preserved. If the evidence or scope changed, report it and
+stop rather than silently selecting a different revision.
