@@ -236,9 +236,30 @@ def tree_delta(before: Mapping[str, bytes], after: Mapping[str, bytes]) -> dict[
     }
 
 
+def normalize_generated_copyright_for_comparison(content: bytes) -> bytes:
+    # Existing plugin files retain their creation year, while newly generated
+    # files use the current year. A year-only difference is not customization.
+    return re.sub(
+        rb"(?m)^ \* Copyright \(c\) \d{4}, the Dart project authors\.$",
+        b" * Copyright (c) YEAR, the Dart project authors.",
+        content,
+        count=1,
+    )
+
+
+def copyright_neutral_tree(tree: Mapping[str, bytes]) -> dict[str, bytes]:
+    return {
+        path: normalize_generated_copyright_for_comparison(content)
+        for path, content in tree.items()
+    }
+
+
 def classify_plugin(
     baseline: Mapping[str, bytes], target: Mapping[str, bytes], plugin: Mapping[str, bytes]
 ) -> dict[str, Any]:
+    comparable_baseline = copyright_neutral_tree(baseline)
+    comparable_target = copyright_neutral_tree(target)
+    comparable_plugin = copyright_neutral_tree(plugin)
     customized = [
         {
             "path": path,
@@ -246,17 +267,17 @@ def classify_plugin(
             "plugin_sha256": sha256_bytes(plugin[path]),
         }
         for path in sorted(set(baseline) & set(plugin))
-        if baseline[path] != plugin[path]
+        if comparable_baseline[path] != comparable_plugin[path]
     ]
     plugin_owned = sorted(set(plugin) - set(baseline))
-    baseline_target = tree_delta(baseline, target)
+    baseline_target = tree_delta(comparable_baseline, comparable_target)
     changed_upstream = set(baseline_target["changed"]) | set(baseline_target["removed"])
     customized_names = {entry["path"] for entry in customized}
     added_collisions = set(baseline_target["added"]) & set(plugin_owned)
     overlaps = sorted((changed_upstream & customized_names) | added_collisions)
     return {
         "baseline_to_target": baseline_target,
-        "plugin_to_target": tree_delta(plugin, target),
+        "plugin_to_target": tree_delta(comparable_plugin, comparable_target),
         "plugin_owned_files": plugin_owned,
         "customized_generated_files": customized,
         "overlapping_changes": overlaps,

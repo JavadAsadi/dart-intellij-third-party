@@ -36,6 +36,10 @@ safety, nullability, repository conventions, and existing customizations. Preser
 files and intentional deviations. If a selected change overlaps a local customization, stop for a
 human decision instead of replacing it.
 
+The generator gives newly created Java files the current calendar year's copyright header. Keep
+the historical year on existing plugin files; audit classification deliberately ignores differences
+only in the standard generated copyright-year line so they are not mistaken for customizations.
+
 The candidate span remains fixed through the test-first pauses. Because test and usage sources are
 manifest inputs, regenerate and validate a fresh bundle after adding the accepted tests and before
 production implementation. Confirm that the new report selects the same span; if the SDK or driver

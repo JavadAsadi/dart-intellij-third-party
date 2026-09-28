@@ -15,6 +15,7 @@ import 'src_gen_java.dart';
 export 'src_gen_java.dart' show JavaGenerator;
 
 const String servicePackage = 'org.dartlang.vm.service';
+final int generatedFileCopyrightYear = DateTime.now().year;
 
 const List<String> simpleTypes = [
   'BigDecimal',
@@ -339,8 +340,11 @@ class Api extends Member with ApiParseUtil {
   }
 
   void _setFileHeader() {
-    fileHeader = r'''/*
- * Copyright (c) 2015, the Dart project authors.
+    fileHeader = generatedJavaFileHeader();
+  }
+
+  static String generatedJavaFileHeader() => '''/*
+ * Copyright (c) $generatedFileCopyrightYear, the Dart project authors.
  *
  * Licensed under the Eclipse Public License v1.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -353,7 +357,6 @@ class Api extends Member with ApiParseUtil {
  * the License.
  */
 ''';
-  }
 
   static String printNode(Node n) {
     if (n is Text) {

@@ -106,6 +106,29 @@ import {audit.PLUGIN_PACKAGE}.element.*;
 
 
 class ClassificationTest(unittest.TestCase):
+    def test_classification_ignores_generated_copyright_year_only_changes(self) -> None:
+        def generated_java(year: int, body: str = "same") -> bytes:
+            return f"""/*
+ * Copyright (c) {year}, the Dart project authors.
+ */
+{body}
+""".encode()
+
+        baseline = {"service/A.java": generated_java(2026)}
+        target = {
+            "service/A.java": generated_java(2026),
+            "service/New.java": generated_java(2026, "new"),
+        }
+        plugin = {"service/A.java": generated_java(2015)}
+
+        result = audit.classify_plugin(baseline, target, plugin)
+
+        self.assertEqual([], result["customized_generated_files"])
+        self.assertEqual(
+            {"added": ["service/New.java"], "changed": [], "removed": []},
+            result["plugin_to_target"],
+        )
+
     def test_classification_separates_owned_customized_and_overlapping_files(self) -> None:
         baseline = {
             "service/A.java": b"a",

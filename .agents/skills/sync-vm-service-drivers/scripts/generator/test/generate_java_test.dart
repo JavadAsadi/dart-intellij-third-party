@@ -2,6 +2,7 @@ import '../lib/java/generate_java.dart';
 import '../lib/java/src_gen_java.dart';
 
 void main() {
+  _expectGeneratedFileCopyrightYear();
   _expectAccessor(
     propertyName: 'timestamp',
     expected: '    return getAsLong("timestamp");\n',
@@ -10,6 +11,19 @@ void main() {
     propertyName: 'count',
     expected: '    return getAsInt("count");\n',
   );
+}
+
+void _expectGeneratedFileCopyrightYear() {
+  final header = Api.generatedJavaFileHeader();
+  final expected =
+      'Copyright (c) $generatedFileCopyrightYear, the Dart project authors.';
+  if (!header.contains(expected)) {
+    throw StateError(
+      'Generated Java header does not contain the expected copyright.\n'
+      'Expected: $expected\n'
+      'Actual:   $header',
+    );
+  }
 }
 
 void _expectAccessor({

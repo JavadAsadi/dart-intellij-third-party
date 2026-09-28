@@ -48,7 +48,9 @@ Before editing any file, tell the user:
 Generated Java is evidence, not an instruction to overwrite the driver tree. Check the protocol's
 semantics and existing Java conventions. In particular, review timestamp, duration, ID, offset, and
 count ranges instead of accepting a generated `int`/`Integer` mechanically; PR #654 required
-`long`/`Long` to prevent overflow.
+`long`/`Long` to prevent overflow. Preserve the historical copyright year in existing files. Files
+first added by the upgrade must use the current calendar year emitted by the pinned generator; do
+not bulk-update older generated headers.
 
 ## Write the unit test first
 

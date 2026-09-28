@@ -11,8 +11,8 @@
   "local_patches": {
     "lib/java/generate_java.dart": {
       "upstream_sha256": "825a4372ce547a30e2bacf9dffe0e75b4cc7012338e5ab06d3bf51cb80db6d7c",
-      "sha256": "1716413925d090a3afc222649985bcd5d470ea3a6ddaa780b13d684f78644f03",
-      "description": "Generate timestamp accessors through Element.getAsLong."
+      "sha256": "38ea56258a5df4c07070f131ca8c76873c5c59dfe63de2b5bdb9954e365be6e8",
+      "description": "Generate timestamp accessors through Element.getAsLong and use the current year in generated driver copyright headers."
     }
   }
 }
