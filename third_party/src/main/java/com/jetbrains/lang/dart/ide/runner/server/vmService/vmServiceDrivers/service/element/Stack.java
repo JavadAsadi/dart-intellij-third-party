@@ -31,7 +31,7 @@ public class Stack extends Response {
    * A list of frames which contains both synchronous part and the asynchronous continuation e.g.
    * `async` functions awaiting completion of the currently running `async` function. Asynchronous
    * frames are separated from each other and synchronous prefix via frames of kind
-   * FrameKind.kAsyncSuspensionMarker.
+   * {@link FrameKind#AsyncSuspensionMarker}.
    *
    * This field is absent if currently running code does not have an asynchronous continuation.
    *
