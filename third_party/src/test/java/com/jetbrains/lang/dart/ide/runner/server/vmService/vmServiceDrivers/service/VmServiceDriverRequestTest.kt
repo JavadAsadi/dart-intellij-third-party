@@ -8,8 +8,10 @@ package com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.ser
 
 import com.google.gson.JsonObject
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.consumer.Consumer
+import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.consumer.GetIsolatePauseEventConsumer
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.consumer.GetPerfettoCpuSamplesConsumer
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.consumer.PerfettoTimelineConsumer
+import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.Event
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.PerfettoCpuSamples
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.PerfettoTimeline
 import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.element.RPCError
@@ -17,6 +19,18 @@ import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.serv
 import junit.framework.TestCase
 
 class VmServiceDriverRequestTest : TestCase() {
+
+  fun testIsolatePauseEventRequest() {
+    val service = RecordingVmService()
+    val consumer = isolatePauseEventConsumer()
+
+    service.getIsolatePauseEvent("isolates/1", consumer)
+
+    assertEquals("getIsolatePauseEvent", service.method)
+    assertEquals("isolates/1", service.params.get("isolateId").asString)
+    assertEquals(1, service.params.size())
+    assertSame(consumer, service.consumer)
+  }
 
   fun testPerfettoTimelineRequestSupportsLongTimestamps() {
     val service = RecordingVmService()
@@ -82,6 +96,13 @@ class VmServiceDriverRequestTest : TestCase() {
   private fun perfettoCpuSamplesConsumer(): GetPerfettoCpuSamplesConsumer =
     object : GetPerfettoCpuSamplesConsumer {
       override fun received(response: PerfettoCpuSamples) = Unit
+      override fun received(response: Sentinel) = Unit
+      override fun onError(error: RPCError) = Unit
+    }
+
+  private fun isolatePauseEventConsumer(): GetIsolatePauseEventConsumer =
+    object : GetIsolatePauseEventConsumer {
+      override fun received(response: Event) = Unit
       override fun received(response: Sentinel) = Unit
       override fun onError(error: RPCError) = Unit
     }
