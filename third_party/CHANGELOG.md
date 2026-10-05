@@ -2,6 +2,7 @@
 
 ### Added
 - File Structure view implemented with JetBrains LSP (experimental feature) (#673)
+- Code completion with JetBrains LSP (experimental feature) (#399)
 
 ### Changed
 
