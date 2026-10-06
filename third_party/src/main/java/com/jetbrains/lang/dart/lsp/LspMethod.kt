@@ -11,6 +11,8 @@ enum class LspMethod(
     val presentableName: String? = null
 ) {
     CODE_ACTION("textDocument/codeAction", isExperimental = true, presentableName = "code actions"),
+    COMPLETION("textDocument/completion", isExperimental = true, presentableName = "completion"),
+    COMPLETION_RESOLVE("completionItem/resolve", isExperimental = false),
     DEFINITION("textDocument/definition", isExperimental = true, presentableName = "navigation"),
     DIAGNOSTIC_SERVER("dart/diagnosticServer", isExperimental = false),
     DOCUMENT_HIGHLIGHT("textDocument/documentHighlight", isExperimental = false),
@@ -21,7 +23,8 @@ enum class LspMethod(
     INLAY_HINT("textDocument/inlayHint", isExperimental = false),
     SHUTDOWN("shutdown"),
     TYPE_DEFINITION("textDocument/typeDefinition", isExperimental = false),
-    REFERENCES("textDocument/references", isExperimental = true, presentableName = "references");
+    REFERENCES("textDocument/references", isExperimental = true, presentableName = "references"),
+    DOCUMENT_SYMBOL("textDocument/documentSymbol", isExperimental = true, presentableName = "document symbols");
 
     companion object {
         fun fromMethod(method: String): LspMethod? = entries.find { it.method == method }
