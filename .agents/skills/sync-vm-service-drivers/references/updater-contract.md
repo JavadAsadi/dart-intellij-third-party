@@ -5,8 +5,9 @@ script, generated report, schema, manifest, or code-generation step.
 
 ## Establish immutable inputs
 
-Record the plugin commit, initial worktree status, and version declared by `VmService.java`. For the
-SDK source, record the checkout or official repository used, its exact target commit, branch,
+Record the plugin commit, initial worktree status, and version declared by
+`third_party/src/main/java/com/jetbrains/lang/dart/ide/runner/server/vmService/vmServiceDrivers/service/VmService.java`.
+For the SDK source, record the checkout or official repository used, its exact target commit, branch,
 cleanliness, and the evidence used to judge whether it is current. Do not substitute a moving branch
 name for a commit ID in later reasoning.
 

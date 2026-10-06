@@ -6,9 +6,9 @@ description: Advance the Dart IntelliJ plugin's VM Service Java drivers by exact
 # Sync VM Service Drivers
 
 Advance exactly one protocol version per invocation. The version declared by
-`vmServiceDrivers/service/VmService.java` is the current version; the first later revision in the
-Dart SDK's `runtime/vm/service/service.md` history is the target. Do not jump directly to the latest
-revision.
+`third_party/src/main/java/com/jetbrains/lang/dart/ide/runner/server/vmService/vmServiceDrivers/service/VmService.java`
+is the current version; the first later revision in the Dart SDK's
+`runtime/vm/service/service.md` history is the target. Do not jump directly to the latest revision.
 
 This is an interactive red-green workflow. The review pauses below are mandatory: do not replace a
 pause with an assumption that the user approves the tests or the next phase.
@@ -118,10 +118,10 @@ that decision and proceed only when they authorize implementation.
 ## Revalidate and implement
 
 Before production edits, repeat the read-only checks recorded at the start. Confirm that the SDK
-target commit and ordered selected commit IDs are unchanged, `VmService.java` still declares the
-same current version, and the plugin worktree contains only the expected test changes plus preserved
-pre-existing changes. If any protocol evidence changed, explain it and stop instead of silently
-changing scope.
+target commit and ordered selected commit IDs are unchanged, the driver entrypoint still declares
+the same current version, and the plugin worktree contains only the expected test changes plus
+preserved pre-existing changes. If any protocol evidence changed, explain it and stop instead of
+silently changing scope.
 
 Implement only the selected next-version span. Write the necessary driver elements, consumers, RPC
 overloads, parameter serialization, response routing, and documentation directly. Match neighboring
