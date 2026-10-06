@@ -82,7 +82,7 @@ public class VmService extends VmServiceBase {
   /**
    * The minor version number of the protocol supported by this client.
    */
-  public static final int versionMinor = 7;
+  public static final int versionMinor = 8;
 
   /**
    * The [addBreakpoint] RPC is used to add a breakpoint at a specific line of some script.
@@ -400,6 +400,15 @@ public class VmService extends VmServiceBase {
     final JsonObject params = new JsonObject();
     params.addProperty("isolateGroupId", isolateGroupId);
     request("getIsolateGroupMemoryUsage", params, consumer);
+  }
+
+  /**
+   * The [getIsolatePauseEvent] RPC is used to lookup an isolate's pause event by its [id].
+   */
+  public void getIsolatePauseEvent(String isolateId, GetIsolatePauseEventConsumer consumer) {
+    final JsonObject params = new JsonObject();
+    params.addProperty("isolateId", isolateId);
+    request("getIsolatePauseEvent", params, consumer);
   }
 
   /**
@@ -1163,6 +1172,16 @@ public class VmService extends VmServiceBase {
       }
       if (responseType.equals("Sentinel")) {
         ((GetIsolateGroupMemoryUsageConsumer) consumer).received(new Sentinel(json));
+        return;
+      }
+    }
+    if (consumer instanceof GetIsolatePauseEventConsumer) {
+      if (responseType.equals("Event")) {
+        ((GetIsolatePauseEventConsumer) consumer).received(new Event(json));
+        return;
+      }
+      if (responseType.equals("Sentinel")) {
+        ((GetIsolatePauseEventConsumer) consumer).received(new Sentinel(json));
         return;
       }
     }
