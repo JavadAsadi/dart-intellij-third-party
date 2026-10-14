@@ -58,7 +58,7 @@ enforce standard modern Java/Kotlin coding conventions, but strictly police the 
 - Use imports instead of fully qualified names.
 
 ## 4. Code Quality & Maintainability
-- **Third-Party Code:** NEVER modify files under `third_party/thirdPartySrc/` directly. This content is periodically copied from upstream, so flag direct modifications with a `[MUST-FIX]` comment unless the change includes an explicit, durable patching workflow or repository-owner override.
+- **Third-Party Code:** Files under `third_party/thirdPartySrc/platform-lsp/` and `third_party/thirdPartySrc/analysisServer/org/dartlang/analysis/server/protocol/` are periodically copied/generated from upstream (`intellij-community` or the Dart SDK). Flag direct modifications to these paths with `[MUST-FIX]` unless the change includes an explicit, durable patching workflow (e.g., `.agents/skills/patch-copied-lsp-sources/scripts/patch.py`) or a repository-owner override. Custom client code under `third_party/thirdPartySrc/analysisServer/com/google/dart/server/` (e.g. `RequestUtilities.java`) is maintained in this repo and **may be edited directly**; do not flag it.
 - **Single Responsibility:** Methods should ideally be 10-20 lines. If a method exceeds 30 lines, suggest a refactor.
 - **DRY:** Identify blocks of code that are 90%+ identical to existing utility methods in this repo and flag them for duplication.
 - **Meaningful Naming:** Variables should describe their intent (e.g., `timeoutInMs` instead of `t`).
