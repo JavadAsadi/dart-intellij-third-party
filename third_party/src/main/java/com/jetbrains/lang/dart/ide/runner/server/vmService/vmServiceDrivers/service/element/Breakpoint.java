@@ -41,9 +41,7 @@ public class Breakpoint extends Obj {
   }
 
   /**
-   * Note: this property is deprecated and is always absent from the response.
-   *
-   * Can return <code>null</code>.
+   * Deprecated since version 4.10 of the protocol. This property is always absent from the response.
    */
   public boolean getIsSyntheticAsyncContinuation() {
     return getAsBoolean("isSyntheticAsyncContinuation");
