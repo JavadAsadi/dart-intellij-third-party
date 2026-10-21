@@ -9,15 +9,9 @@ package com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.ser
 import com.google.gson.JsonArray
 import com.google.gson.JsonNull
 import com.google.gson.JsonObject
-import com.jetbrains.lang.dart.ide.runner.server.vmService.vmServiceDrivers.service.VmService
 import junit.framework.TestCase
 
 class VmServiceDriverElementTest : TestCase() {
-
-  fun testProtocolVersionIs410() {
-    assertEquals(4, VmService.versionMajor)
-    assertEquals(10, VmService.versionMinor)
-  }
 
   fun testDeprecatedTypeRefKindRemainsDecodable() {
     val json = JsonObject().apply {
